@@ -1,6 +1,9 @@
 [package]
 name = "crewride"
-version = "0.1.0"
+version = "0.0.1"
+authors = ["fn-a <mr.fna.co@gmail.com>"]
 edition = "2024"
+description = "crewride project"
+license = "MIT"
 
 [dependencies]
