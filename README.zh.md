@@ -1,4 +1,4 @@
-# 实现AI供应商接口格式之间的互相转发
+# 实现AI供应商接口格式之间的互相转发的应用
 
 ## 测试 Anthropic → OpenAI
 curl -X POST http://localhost:8899/v1/messages \

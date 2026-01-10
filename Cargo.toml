@@ -3,6 +3,7 @@ name = "crewride"
 version = "0.0.2"
 authors = ["fn-a <mr.fna.co@gmail.com>"]
 edition = "2024"
+repository = "https://github.com/fn-a/crewride"
 description = "A high-performance AI proxy service, supporting multiple AI providers (OpenAI, Anthropic, Gemini) with unified API access and cross-provider forwarding capabilities"
 license = "MIT"
 

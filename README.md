@@ -1,4 +1,4 @@
-# Implementing Mutual Forwarding Between AI Provider Interface Formats
+# An Application That Implementing Mutual Forwarding Between AI Provider Interface Formats
 
 ## Test Anthropic → OpenAI
 curl -X POST http://localhost:8899/v1/messages \
@@ -39,7 +39,7 @@ curl -N -X POST http://localhost:8899/v1/messages \
   "providers": [
     {
       "key": "openai-official",
-      "name": "OpenAI 官方",
+      "name": "OpenAI Official",
       "type": "openai",
       "api_key": "${OPENAI_API_KEY}",
       "api_url": "http://127.0.0.1:11434/",
@@ -47,7 +47,7 @@ curl -N -X POST http://localhost:8899/v1/messages \
     },
     {
       "key": "anthropic-official",
-      "name": "Anthropic 官方",
+      "name": "Anthropic Official",
       "type": "anthropic",
       "api_key": "${ANTHROPIC_API_KEY}",
       "api_url": "https://api.anthropic.com/",
@@ -55,7 +55,7 @@ curl -N -X POST http://localhost:8899/v1/messages \
     },
     {
       "key": "gemini-official",
-      "name": "Google Gemini 官方",
+      "name": "Google Gemini Official",
       "type": "gemini",
       "api_key": "${GEMINI_API_KEY}",
       "api_url": "https://generativelanguage.googleapis.com/",
@@ -101,19 +101,19 @@ host: "127.0.0.1"
 port: 8899
 providers:
   - key: "openai-official"
-    name: "OpenAI 官方"
+    name: "OpenAI Official"
     type: "openai"
     api_key: "${OPENAI_API_KEY}"
     api_url: "https://api.openai.com/"
     enabled: true
   - key: "anthropic-official"
-    name: "Anthropic 官方"
+    name: "Anthropic Official"
     type: "anthropic"
     api_key: "${ANTHROPIC_API_KEY}"
     api_url: "https://api.anthropic.com/"
     enabled: true
   - key: "gemini-official"
-    name: "Google Gemini 官方"
+    name: "Google Gemini Official"
     type: "gemini"
     api_key: "${GEMINI_API_KEY}"
     api_url: "https://generativelanguage.googleapis.com/"
