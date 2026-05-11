@@ -138,6 +138,10 @@ models:
     provider: null
 ```
 
+## 规划
+增加AI Chat页面，开发Agent功能
+页面演进功能，通过AI按照接口来生成页面，可加入到系统中，以便快速访问功能
+
 ## 参考
 https://deepwiki.com/erans/lunaroute
 https://github.com/erans/lunaroute
