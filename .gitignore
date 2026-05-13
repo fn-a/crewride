@@ -6,3 +6,12 @@
 config.json
 config.yaml
 config.yml
+
+# JS/TS
+node_modules/
+dist/
+.tsbuildinfo
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
