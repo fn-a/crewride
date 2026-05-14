@@ -1,7 +1,7 @@
 import type { ProviderType } from '@crewride/core';
-import siOpenai from '~icons/simple-icons/openai';
-import siAnthropic from '~icons/simple-icons/anthropic';
-import siGoogle from '~icons/simple-icons/google';
+import lobiOpenai from '~icons/lobe/openai';
+import lobiAnthropic from '~icons/lobe/anthropic';
+import lobiGoogle from '~icons/lobe/google';
 import {
     Select,
     SelectContent,
@@ -45,9 +45,9 @@ const PROVIDER_LABELS: Record<ProviderType, string> = {
 };
 
 const PROVIDER_ICONS: Record<ProviderType, string> = {
-    openai: siOpenai,
-    anthropic: siAnthropic,
-    gemini: siGoogle,
+    openai: lobiOpenai,
+    anthropic: lobiAnthropic,
+    gemini: lobiGoogle,
 };
 
 function ProviderLogo({ provider, className }: { provider: ProviderType; className?: string }) {

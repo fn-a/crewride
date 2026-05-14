@@ -140,7 +140,31 @@ models:
 
 ## 规划
 增加AI Chat页面，开发Agent功能
-页面演进功能，通过AI按照接口来生成页面，可加入到系统中，以便快速访问功能
+页面演进功能，通过AI按照接口来生成页面，可加入到系统中，以便访问页面快速使用功能
+根据对话时间线，自由调整对话流，可回溯从某次对话中切出新的对话流
+
+
+## 开发时链接本地库
+
+### 1️⃣ 在本地包目录执行
+
+```bash
+cd ../some/lib
+pnpm link --global
+```
+
+### 2️⃣ 在项目目录执行
+
+```bash
+cd ../../crewride
+pnpm link --global @some/lib
+```
+
+### 🔁 恢复远程版本
+```bash
+pnpm unlink @some/lib
+pnpm install  # 重新拉取远程版本
+```
 
 ## 参考
 https://deepwiki.com/erans/lunaroute

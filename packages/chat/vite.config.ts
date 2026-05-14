@@ -1,15 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import Icons from 'unplugin-icons/vite';
+import unpluginIcons from 'unplugin-icons/vite';
+import { ExternalPackageIconLoader } from 'unplugin-icons/loaders';
 import path from 'node:path';
 
 export default defineConfig({
     plugins: [
         react(),
         tailwindcss(),
-        Icons({
+        unpluginIcons({
             compiler: 'raw',
+            customCollections: {
+                ...ExternalPackageIconLoader('@llmicons-json/lobe'),
+            },
         }),
     ],
     resolve: {
