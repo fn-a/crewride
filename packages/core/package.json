@@ -1,21 +1,30 @@
 {
     "name": "@crewride/core",
     "version": "0.0.1",
-    "description": "Shared types, hooks, and utilities for CrewRide AI Chat",
     "type": "module",
     "main": "./dist/index.cjs",
-    "module": "./dist/index.js",
+    "module": "./dist/index.mjs",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "import": {
                 "types": "./dist/index.d.ts",
-                "default": "./dist/index.js"
+                "default": "./dist/index.mjs"
             },
             "require": {
                 "types": "./dist/index.d.cts",
                 "default": "./dist/index.cjs"
             }
+        },
+        "./mocks": {
+            "types": "./dist/mocks.d.ts",
+            "import": "./dist/mocks.mjs",
+            "require": "./dist/mocks.cjs"
+        },
+        "./tests": {
+            "types": "./dist/tests.d.ts",
+            "import": "./dist/tests.mjs",
+            "require": "./dist/tests.cjs"
         }
     },
     "files": [
@@ -26,6 +35,15 @@
         "build": "vite build",
         "typecheck": "tsc --noEmit",
         "clean": "rimraf dist"
+    },
+    "dependencies": {
+        "@ai-sdk/anthropic": "^3.0.77",
+        "@ai-sdk/google": "^3.0.73",
+        "@ai-sdk/openai": "^3.0.63",
+        "@ai-sdk/provider": "^3.0.10",
+        "@ai-sdk/react": "^3.0.184",
+        "ai": "^6.0.182",
+        "nanoid": "^5.1.11"
     },
     "peerDependencies": {
         "react": "^19.2.3",

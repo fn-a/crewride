@@ -1,5 +1,20 @@
-// @crewride/core - Shared types, hooks, and utilities for CrewRide AI Chat
-export * from './types';
-export * from './hooks';
-export * from './utils';
-export * from './protocol';
+export type {
+    ProviderKind,
+    ProviderInfo,
+    ProviderConfig,
+    ModelInfo,
+    ChatMessage,
+    MessageVersion,
+    MessageToolCall,
+    MessageSource,
+    Conversation,
+    AgentConfig,
+    ChatRequestOptions,
+    MessageType,
+} from './types';
+
+export { getModel } from './providers';
+
+export { useConversations } from './hooks';
+
+export { formatDuration, truncateText, generateTitleFromMessage } from './utils';

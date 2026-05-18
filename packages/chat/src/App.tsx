@@ -1,78 +1,114 @@
 import { useState, useCallback } from 'react';
-import type { ProviderType, ChatSession } from '@crewride/core';
-import { useChat } from '@crewride/core';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { ChatPanel } from '@/components/chat';
-import { Sidebar } from '@/components/layout';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { TooltipProvider } from '@/components/tooltip';
+import { Button } from '@/components/button';
+import { Toaster } from 'sonner';
+import { ArrowLeftIcon } from 'lucide-react';
+import { useConversations } from '@crewride/core';
+import ChatView from '@/views/chat';
+import SettingsView from '@/views/settings';
+import { Sidebar } from '@/layouts/sidebar';
+import { Header, Theme } from '@/layouts/header';
 
-function App() {
-    const { session, status, error, createSession, sendMessage, stopStreaming, clearSession } =
-        useChat();
+function AppLayout() {
+    const navigate = useNavigate();
+    const {
+        conversations,
+        activeId,
+        setActiveId,
+        createConversation,
+        deleteConversation,
+    } = useConversations();
 
-    const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [model] = useState('gpt-4o');
 
-    const handleNewChat = useCallback(
-        (model: string, provider: ProviderType) => {
-            createSession(model, provider);
-        },
-        [createSession],
+    const handleSelectConversation = useCallback(
+        (id: string) => setActiveId(id),
+        [setActiveId],
     );
 
-    const handleSelectSession = useCallback(
-        (id: string) => {
-            const found = sessions.find((s) => s.id === id);
-            if (found) {
-                // Multi-session management would require extending useChat
-            }
-        },
-        [sessions],
+    const handleCreateConversation = useCallback(() => {
+        createConversation('New Chat', model, 'openai');
+    }, [model, createConversation]);
+
+    const handleDeleteConversation = useCallback(
+        (id: string) => deleteConversation(id),
+        [deleteConversation],
     );
 
-    const handleDeleteSession = useCallback(
-        (id: string) => {
-            setSessions((prev) => prev.filter((s) => s.id !== id));
-            if (session?.id === id) {
-                clearSession();
-            }
-        },
-        [session, clearSession],
+    const handleToggleSidebar = useCallback(
+        () => setSidebarCollapsed((prev) => !prev),
+        [],
     );
 
-    const handleModelChange = useCallback(
-        (model: string, provider: ProviderType) => {
-            createSession(model, provider);
-        },
-        [createSession],
-    );
+    const handleNavigateSettings = useCallback(() => {
+        navigate('/settings');
+    }, [navigate]);
 
     return (
-        <TooltipProvider>
-            <div className="flex h-screen bg-background text-foreground">
-                <Sidebar
-                    sessions={sessions}
-                    activeSessionId={session?.id ?? null}
-                    onSelectSession={handleSelectSession}
-                    onNewChat={handleNewChat}
-                    onDeleteSession={handleDeleteSession}
-                    collapsed={sidebarCollapsed}
-                    onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
-                />
-                <main className="flex flex-1 flex-col">
-                    {error && (
-                        <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">
-                            {error}
-                        </div>
-                    )}
-                    <ChatPanel
-                        session={session}
-                        status={status}
-                        onSend={sendMessage}
-                        onStop={stopStreaming}
-                        onModelChange={handleModelChange}
-                    />
-                </main>
-            </div>
+        <div className="flex h-screen overflow-hidden bg-background">
+            <Sidebar
+                conversations={conversations}
+                activeId={activeId}
+                collapsed={sidebarCollapsed}
+                onSelectConversation={handleSelectConversation}
+                onCreateConversation={handleCreateConversation}
+                onDeleteConversation={handleDeleteConversation}
+                onToggleCollapse={handleToggleSidebar}
+                onNavigateSettings={handleNavigateSettings}
+            />
+            <main className="flex flex-1 flex-col overflow-hidden">
+                <Header>
+                    <Theme />
+                </Header>
+                <ChatView />
+            </main>
+        </div>
+    );
+}
+
+function SettingsLayout() {
+    const navigate = useNavigate();
+    return (
+        <div className="flex h-screen flex-col bg-background">
+            <Header title={
+                <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate('/chat')}
+                type="button"
+            >
+                <ArrowLeftIcon className="size-4" />
+                Settings
+            </Button>
+        }>
+                <Theme />
+            </Header>
+            <SettingsView />
+        </div>
+    )
+}
+
+function App() {
+    return (
+        <TooltipProvider delayDuration={300}>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/chat" element={<AppLayout />} />
+                    <Route path="/settings" element={<SettingsLayout />} />
+                    <Route path="*" element={<Navigate to="/chat" replace />} />
+                </Routes>
+            </BrowserRouter>
+            <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                toastOptions={{
+                    duration: 3000,
+                }}
+            />
         </TooltipProvider>
     );
 }

@@ -11,12 +11,24 @@ export default defineConfig({
     ],
     build: {
         lib: {
-            entry: 'src/index.ts',
+            entry: {
+                index: 'src/index.ts',
+                mocks: 'src/mocks.ts',
+                tests: 'src/tests.ts',
+            },
             formats: ['es', 'cjs'],
-            fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
+            fileName: (format, entryName) => {
+                const ext = format === 'es' ? 'mjs' : 'cjs';
+                return `${entryName}.${ext}`;
+            },
         },
         rollupOptions: {
-            external: ['react', 'react-dom'],
+            external: [
+                /^react(\/.*)?$/,
+                /^react-dom(\/.*)?$/,
+                'use-sync-external-store',
+                'nanoid',
+            ],
         },
     },
 });
