@@ -1,21 +1,22 @@
+use std::io::Error;
 use axum::{
     Json, response::Response, http::StatusCode, 
     body::Body, response::IntoResponse
 };
+use reqwest::Response as Reswponse;
 use futures::StreamExt;
+use eventsource_stream::Eventsource;
 
 use aidapter::{
     openai::prefix::{OpenAIChatResponse, OpenAIStreamChunk},
     gemini::prefix::{GeminiChatResponse, GeminiStreamChunk},
 };
 
+use datum::TokenUsage;
+
 // ============ 流式转换: OpenAI → Gemini ============
 
-pub async fn from_openai_streaming(
-    response: reqwest::Response,
-) -> Result<Response, StatusCode> {
-    use eventsource_stream::Eventsource;
-
+pub async fn from_openai_streaming(response: Reswponse) -> Result<Response, StatusCode> {
     let byte_stream = response.bytes_stream();
     let event_stream = byte_stream.eventsource();
 
@@ -24,27 +25,26 @@ pub async fn from_openai_streaming(
             Ok(event) => {
                 if event.data == "[DONE]" {
                     return None;
+                } else {
+                    // 解析OpenAI流式响应
+                    if let Ok(openai_chunk) = serde_json::from_str::<OpenAIStreamChunk>(&event.data) {
+                        // 转换为Gemini流式块
+                        let gemini_chunks = Vec::<GeminiStreamChunk>::from(&openai_chunk);
+                        
+                        // 序列化为Gemini SSE格式
+                        let bytes: Vec<u8> = gemini_chunks
+                            .iter()
+                            .flat_map(|chunk| {
+                                let json = serde_json::to_string(chunk).unwrap_or_default();
+                                format!("data: {}\n\n", json).into_bytes()
+                            })
+                            .collect();
+                        
+                        Some(Ok::<_, Error>(bytes))
+                    } else {
+                        None
+                    }
                 }
-
-                // 解析OpenAI流式响应
-                let openai_chunk: OpenAIStreamChunk = match serde_json::from_str(&event.data) {
-                    Ok(chunk) => chunk,
-                    Err(_) => return None,
-                };
-
-                // 转换为Gemini流式块
-                let gemini_chunks = Vec::<GeminiStreamChunk>::from(&openai_chunk);
-                
-                // 序列化为Gemini SSE格式
-                let bytes: Vec<u8> = gemini_chunks
-                    .iter()
-                    .flat_map(|chunk| {
-                        let json = serde_json::to_string(chunk).unwrap_or_default();
-                        format!("data: {}\n\n", json).into_bytes()
-                    })
-                    .collect();
-                
-                Some(Ok::<_, std::io::Error>(bytes))
             }
             Err(_) => None,
         }
@@ -56,11 +56,18 @@ pub async fn from_openai_streaming(
 
 // ============ 非流式响应转换 ============
 
-pub async fn from_openai_response(response: reqwest::Response) -> Result<Response, StatusCode> {
+pub async fn from_openai_response(response: Reswponse) -> Result<(Response, TokenUsage), StatusCode> {
     let resp: OpenAIChatResponse = response
         .json()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(GeminiChatResponse::from(&resp)).into_response())
+    let usage = TokenUsage {
+        requests: 1,
+        input_tokens: resp.usage.prompt_tokens as u64,
+        output_tokens: resp.usage.completion_tokens as u64,
+        tokens: resp.usage.total_tokens as u64,
+    };
+
+    Ok((Json(GeminiChatResponse::from(&resp)).into_response(), usage))
 }

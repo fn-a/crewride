@@ -7,12 +7,14 @@ use axum::{
 use url::Url;
 use aidapter::{
     Provider,
-    openai::prefix::OpenAIChatRequest,
+    openai::prefix::{OpenAIChatRequest, OpenAIChatResponse},
     anthropic::prefix::AnthropicChatRequest,
     gemini::prefix::GeminiChatRequest,
 };
 
-use datum::ProxyState;
+use datum::{AdaptState, RetryConfig};
+
+use crate::{retry, usage};
 
 pub mod anthropic;
 pub mod gemini;
@@ -21,7 +23,7 @@ pub mod gemini;
 
 pub async fn handler(
     headers: HeaderMap,
-    State(state): State<Arc<ProxyState>>,
+    State(state): State<Arc<AdaptState>>,
     Json(mut req): Json<OpenAIChatRequest>,
 ) -> Result<Response, StatusCode> {
     // 提取请求头中的API key
@@ -62,101 +64,102 @@ pub async fn handler(
 
     println!("📥 OpenAI request: model={}, url={}", req.model, api_url);
 
+    let retry = provider_config.retry.clone();
     match provider_config.r#type {
-        Provider::OpenAI => straight(state, req, api_url, api_key).await,
-        Provider::Anthropic => into_anthropic(state, req, api_url, api_key).await,
-        Provider::Gemini => into_gemini(state, req, api_url, api_key).await,
+        Provider::OpenAI => straight(state, req, api_url, api_key, retry.as_ref()).await,
+        Provider::Anthropic => into_anthropic(state, req, api_url, api_key, retry.as_ref()).await,
+        Provider::Gemini => into_gemini(state, req, api_url, api_key, retry.as_ref()).await,
     }
 }
 
 // ============ OpenAI → OpenAI 直通 ============
 
 async fn straight(
-    state: Arc<ProxyState>,
+    state: Arc<AdaptState>,
     req: OpenAIChatRequest,
     api_url: Url,
     api_key: String,
+    retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
     let is_streaming = req.stream.unwrap_or(false);
     println!("⚡ OpenAI passthrough (stream={})", is_streaming);
 
-    let response = state
-        .client
-        .post(
-            api_url
-                .join("/v1/chat/completions")
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-                .as_str(),
-        )
-        .header("authorization", format!("Bearer {}", api_key))
-        .header("content-type", "application/json")
-        .json(&req)
-        .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        
-        if !response.status().is_success() {
-        return Err(StatusCode::BAD_GATEWAY);
-    }
+    let api_url = api_url
+        .join("/v1/chat/completions")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if is_streaming {
-        let stream = response.bytes_stream();
-        let body = Body::from_stream(stream);
-        Ok((StatusCode::OK, [("content-type", "text/event-stream")], body).into_response())
+    let response = retry::dispatch(retry, || 
+        state.client
+            .post(api_url.clone())
+            .header("authorization", format!("Bearer {}", &api_key))
+            .header("content-type", "application/json")
+            .json(&req)
+    ).await?;
+
+    if !response.status().is_success() {
+        Err(StatusCode::BAD_GATEWAY)
     } else {
-        let resp: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        Ok(Json(resp).into_response())
+        if is_streaming {
+            let stream = response.bytes_stream();
+            let body = Body::from_stream(stream);
+            Ok((StatusCode::OK, [("content-type", "text/event-stream")], body).into_response())
+        } else {
+            let resp = response
+                .json::<OpenAIChatResponse>()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            state.stats.record(&usage::extract(&resp));
+            Ok(Json(resp).into_response())
+        }
     }
 }
 
 // ============ OpenAI → Anthropic ============
 
 async fn into_anthropic(
-    state: Arc<ProxyState>,
+    state: Arc<AdaptState>,
     req: OpenAIChatRequest,
     api_url: Url,
     api_key: String,
+    retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
     let is_streaming = req.stream.unwrap_or(false);
     println!("🔄 OpenAI → Anthropic (stream={})", is_streaming);
 
-    let response = state
-        .client
-        .post(
-            api_url
-                .join("/v1/messages")
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-                .as_str(),
-        )
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&AnthropicChatRequest::from(&req))
-        .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let api_url = api_url
+        .join("/v1/messages")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let response = retry::dispatch(retry, || 
+        state.client
+            .post(api_url.clone())
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&AnthropicChatRequest::from(&req))
+    ).await?;
 
     if !response.status().is_success() {
-        return Err(StatusCode::BAD_GATEWAY);
-    }
-
-    if is_streaming {
-        anthropic::from_anthropic_streaming(response).await
+        Err(StatusCode::BAD_GATEWAY)
     } else {
-        anthropic::from_anthropic_response(response).await
+        if is_streaming {
+            anthropic::from_anthropic_streaming(response).await
+        } else {
+            let (resp, usage) = anthropic::from_anthropic_response(response).await?;
+            state.stats.record(&usage);
+            Ok(resp)
+        }
     }
 }
 
 // ============ OpenAI → Gemini ============
 
 async fn into_gemini(
-    state: Arc<ProxyState>,
+    state: Arc<AdaptState>,
     req: OpenAIChatRequest,
     api_url: Url,
     api_key: String,
+    retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
     let is_streaming = req.stream.unwrap_or(false);
     println!("🔄 OpenAI → Gemini (stream={})", is_streaming);
@@ -171,27 +174,26 @@ async fn into_gemini(
         format!("/v1beta/models/{}:generateContent?key={}", req.model, api_key)
     };
 
-    let response = state
-        .client
-        .post(
-            api_url
-                .join(&endpoint)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-                .as_str(),
-        )
-        .header("content-type", "application/json")
-        .json(&gemini_req)
-        .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let full_url = api_url
+        .join(&endpoint)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let response = retry::dispatch(retry, || 
+        state.client
+            .post(full_url.clone())
+            .header("content-type", "application/json")
+            .json(&gemini_req)
+    ).await?;
 
     if !response.status().is_success() {
-        return Err(StatusCode::BAD_GATEWAY);
-    }
-
-    if is_streaming {
-        gemini::from_gemini_streaming(response).await
+        Err(StatusCode::BAD_GATEWAY)
     } else {
-        gemini::from_gemini_response(response).await
+        if is_streaming {
+            gemini::from_gemini_streaming(response).await
+        } else {
+            let (resp, usage) = gemini::from_gemini_response(response).await?;
+            state.stats.record(&usage);
+            Ok(resp)
+        }
     }
 }

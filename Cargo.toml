@@ -35,4 +35,5 @@ axum = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 url = { workspace = true }
+serde = { workspace = true }
 aidapter = { workspace = true }

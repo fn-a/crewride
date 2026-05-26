@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -26,6 +27,8 @@ pub struct ProviderConfig {
     pub api_url: Option<Url>,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub retry: Option<RetryConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +46,78 @@ pub struct ReplaceConfig {
     #[serde(default)]
     pub api_key: bool,
     pub model: Option<String>,
+}
+
+// ============ Token 用量 ============
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TokenUsage {
+    pub requests: u64,
+    pub tokens: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsageStats {
+    pub requests: AtomicU64,
+    pub tokens: AtomicU64,
+    pub input_tokens: AtomicU64,
+    pub output_tokens: AtomicU64,
+}
+
+impl Default for UsageStats {
+    fn default() -> Self {
+        Self {
+            requests: AtomicU64::new(0),
+            tokens: AtomicU64::new(0),
+            input_tokens: AtomicU64::new(0),
+            output_tokens: AtomicU64::new(0),
+        }
+    }
+}
+
+impl UsageStats {
+    pub fn record(&self, usage: &TokenUsage) {
+        self.requests.fetch_add(1, Ordering::Relaxed);
+        self.input_tokens.fetch_add(usage.input_tokens, Ordering::Relaxed);
+        self.output_tokens.fetch_add(usage.output_tokens, Ordering::Relaxed);
+        self.tokens.fetch_add(usage.tokens, Ordering::Relaxed);
+    }
+
+    pub fn snapshot(&self) -> TokenUsage {
+        TokenUsage {
+            requests: self.requests.load(Ordering::Relaxed),
+            input_tokens: self.input_tokens.load(Ordering::Relaxed),
+            output_tokens: self.output_tokens.load(Ordering::Relaxed),
+            tokens: self.tokens.load(Ordering::Relaxed),
+        }
+    }
+}
+
+// ============ 重试配置 ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryConfig {
+    #[serde(default = "default_retry_maxnum")]
+    pub retry_maxnum: u32,
+    #[serde(default = "default_retry_status")]
+    pub retry_status: Vec<u16>,
+    #[serde(default = "default_base_delay_ms")]
+    pub base_delay_ms: u64,
+    #[serde(default = "default_most_delay_ms")]
+    pub most_delay_ms: u64,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            retry_maxnum: default_retry_maxnum(),
+            retry_status: default_retry_status(),
+            base_delay_ms: default_base_delay_ms(),
+            most_delay_ms: default_most_delay_ms(),
+        }
+    }
 }
 
 fn default_host() -> String {
@@ -73,6 +148,22 @@ fn gemini_api_url() -> Result<Url> {
     "https://generativelanguage.googleapis.com/"
         .parse::<Url>()
         .context("Failed to parse Gemini API URL")
+}
+
+fn default_retry_maxnum() -> u32 {
+    3 
+}
+
+fn default_base_delay_ms() -> u64 {
+    500 
+}
+
+fn default_most_delay_ms() -> u64 {
+    10000 
+}
+
+fn default_retry_status() -> Vec<u16> {
+    vec![429, 502, 503, 504] 
 }
 
 impl Config {
@@ -260,7 +351,8 @@ impl Default for Config {
     }
 }
 
-pub struct ProxyState {
+pub struct AdaptState {
     pub client: reqwest::Client,
     pub config: Config,
+    pub stats: UsageStats,
 }
