@@ -12,10 +12,10 @@ use aidapter::{
     gemini::prefix::GeminiChatRequest,
 };
 
-use crate::config::ProxyState;
+use datum::ProxyState;
 
-mod openai;
-mod gemini;
+pub mod gemini;
+pub mod openai;
 
 // ============ Anthropic 端点处理器 ============
 

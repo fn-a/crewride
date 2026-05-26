@@ -1,12 +1,8 @@
 use axum::{Router, routing::post};
 use std::sync::Arc;
 
-// 导入配置和处理器
-mod config;
-mod handlers;
-
-use crate::config::{Config, ProxyState};
-use crate::handlers::{anthropic, gemini, openai};
+use datum::{Config, ProxyState};
+use adapt::{anthropic, gemini, openai};
 
 #[tokio::main]
 async fn main() {

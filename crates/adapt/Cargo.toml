@@ -1,0 +1,15 @@
+[package]
+name = "adapt"
+version = "0.0.2"
+authors = ["fn-a <mr.fna.co@gmail.com>"]
+edition = "2024"
+
+[dependencies]
+datum = { workspace = true }
+axum = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+aidapter = { workspace = true }
+eventsource-stream = "^0.2"

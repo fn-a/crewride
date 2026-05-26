@@ -12,10 +12,10 @@ use aidapter::{
     anthropic::prefix::AnthropicChatRequest,
 };
 
-use crate::config::ProxyState;
+use datum::ProxyState;
 
-mod openai;
-mod anthropic;
+pub mod anthropic;
+pub mod openai;
 
 // ============ Gemini 路由处理器 ============
 
@@ -211,8 +211,7 @@ pub mod stream {
         anthropic::prefix::AnthropicChatRequest,
     };
 
-    use crate::config::ProxyState;
-
+    use datum::ProxyState;
     use super::{openai, anthropic};
 
     // ============ Gemini → Gemini 直通Stream ============
