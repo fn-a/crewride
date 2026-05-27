@@ -5,8 +5,6 @@ import type { LanguageModel } from 'ai';
 import type { ProviderKind } from '../types';
 import { BACKEND_URL } from '../config';
 
-// ============ 三个 Provider，baseURL 统一指向 Rust 后端代理 ============
-
 const openai = createOpenAI({
     baseURL: `${BACKEND_URL}/v1`,
     apiKey: 'proxy',
@@ -17,7 +15,7 @@ const anthropic = createAnthropic({
     apiKey: 'proxy',
 });
 
-const google = createGoogleGenerativeAI({
+const gemini = createGoogleGenerativeAI({
     baseURL: `${BACKEND_URL}/v1beta`,
     apiKey: 'proxy',
 });
@@ -30,6 +28,6 @@ export function useProvider(kind: ProviderKind, modelId: string): LanguageModel 
         case 'anthropic':
             return anthropic(modelId);
         case 'gemini':
-            return google(modelId);
+            return gemini(modelId);
     }
 }

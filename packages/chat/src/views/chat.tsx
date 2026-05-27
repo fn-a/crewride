@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { CheckIcon, GlobeIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import type { AttachmentData } from '@/components/attachments';
 import {
     Attachment,
     AttachmentPreview,
@@ -57,7 +56,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/reas
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/sources';
 import { SpeechInput } from '@/components/speech-input';
 import { Suggestion, Suggestions } from '@/components/suggestion';
-import { useChat, type ProviderKind } from '@crewride/core';
+import { useChat, type ProviderKind, type Message as MessageData } from '@crewride/core';
 
 // 模型列表
 const models = [
@@ -65,7 +64,7 @@ const models = [
     { chef: 'OpenAI', slug: 'openai', id: 'gpt-4o-mini', name: 'GPT-4o Mini', providers: ['openai', 'azure'] },
     { chef: 'Anthropic', slug: 'anthropic', id: 'claude-sonnet-4-20250514', name: 'Claude 4 Sonnet', providers: ['anthropic', 'azure', 'google', 'amazon-bedrock'] },
     { chef: 'Anthropic', slug: 'anthropic', id: 'claude-opus-4-20250514', name: 'Claude 4 Opus', providers: ['anthropic', 'azure', 'google', 'amazon-bedrock'] },
-    { chef: 'Google', slug: 'google', id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', providers: ['google'] },
+    { chef: 'Google', slug: 'gemini', id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', providers: ['google'] },
 ];
 
 const chefs = ['OpenAI', 'Anthropic', 'Google'];
@@ -79,122 +78,142 @@ const suggestions = [
     'How to optimize database queries?',
 ];
 
-const AttachmentItem = ({
-    attachment,
-    onRemove,
-}: {
-    attachment: AttachmentData;
-    onRemove: (id: string) => void;
-}) => {
-    const handleRemove = useCallback(() => {
-        onRemove(attachment.id);
-    }, [onRemove, attachment.id]);
-
+// 消息列表
+function MessageList({ messages }: { messages: MessageData[] }) {
     return (
-        <Attachment data={attachment} onRemove={handleRemove}>
-            <AttachmentPreview />
-            <AttachmentRemove />
-        </Attachment>
+        <Conversation>
+            <ConversationContent>
+                {messages.map(({ versions, ...message }: MessageData) => (
+                    <MessageBranch defaultBranch={0} key={message.key}>
+                        <MessageBranchContent>
+                            {versions.map((version) => (
+                                <Message
+                                    from={message.from}
+                                    key={`${message.key}-${version.id}`}
+                                >
+                                    <div>
+                                        {message.sources?.length && (
+                                            <Sources>
+                                                <SourcesTrigger count={message.sources.length} />
+                                                <SourcesContent>
+                                                    {message.sources.map((source) => (
+                                                        <Source
+                                                            href={source.href}
+                                                            key={source.href}
+                                                            title={source.title}
+                                                        />
+                                                    ))}
+                                                </SourcesContent>
+                                            </Sources>
+                                        )}
+                                        {message.reasoning && (
+                                            <Reasoning duration={message.reasoning.duration}>
+                                                <ReasoningTrigger />
+                                                <ReasoningContent>
+                                                    {message.reasoning.content}
+                                                </ReasoningContent>
+                                            </Reasoning>
+                                        )}
+                                        <MessageContent>
+                                            <MessageResponse>{version.content}</MessageResponse>
+                                        </MessageContent>
+                                    </div>
+                                </Message>
+                            ))}
+                        </MessageBranchContent>
+                        {versions.length > 1 && (
+                            <MessageBranchSelector>
+                                <MessageBranchPrevious />
+                                <MessageBranchPage />
+                                <MessageBranchNext />
+                            </MessageBranchSelector>
+                        )}
+                    </MessageBranch>
+                ))}
+            </ConversationContent>
+            <ConversationScrollButton />
+        </Conversation>
     );
-};
+}
 
-const PromptInputAttachmentsDisplay = () => {
-    const attachments = usePromptInputAttachments();
-
-    const handleRemove = useCallback(
-        (id: string) => {
-            attachments.remove(id);
-        },
-        [attachments],
-    );
-
-    if (attachments.files.length === 0) {
-        return null;
-    }
-
-    return (
-        <Attachments variant="inline">
-            {attachments.files.map((attachment) => (
-                <AttachmentItem
-                    attachment={attachment}
-                    key={attachment.id}
-                    onRemove={handleRemove}
-                />
-            ))}
-        </Attachments>
-    );
-};
-
-const SuggestionItem = ({
-    suggestion,
-    onClick,
-}: {
-    suggestion: string;
-    onClick: (suggestion: string) => void;
-}) => {
-    const handleClick = useCallback(() => {
-        onClick(suggestion);
-    }, [onClick, suggestion]);
-
-    return <Suggestion onClick={handleClick} suggestion={suggestion} />;
-};
-
-const ModelItem = ({
-    m,
-    isSelected,
+// 模型选择
+function ModelPicker({
+    model,
+    open,
+    onOpenChange,
     onSelect,
 }: {
-    m: (typeof models)[0];
-    isSelected: boolean;
-    onSelect: (id: string) => void;
-}) => {
-    const handleSelect = useCallback(() => {
-        onSelect(m.id);
-    }, [onSelect, m.id]);
+    model: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSelect: (modelId: string) => void;
+}) {
+    const selected = useMemo(() => models.find((m) => m.id === model), [model]);
 
     return (
-        <ModelSelectorItem onSelect={handleSelect} value={m.id}>
-            <ModelSelectorLogo provider={m.slug} />
-            <ModelSelectorName>{m.name}</ModelSelectorName>
-            <ModelSelectorLogoGroup>
-                {m.providers.map((provider) => (
-                    <ModelSelectorLogo key={provider} provider={provider} />
-                ))}
-            </ModelSelectorLogoGroup>
-            {isSelected ? (
-                <CheckIcon className="ml-auto size-4" />
-            ) : (
-                <div className="ml-auto size-4" />
-            )}
-        </ModelSelectorItem>
+        <ModelSelector onOpenChange={onOpenChange} open={open}>
+            <ModelSelectorTrigger asChild>
+                <PromptInputButton>
+                    {selected?.slug && <ModelSelectorLogo provider={selected.slug} />}
+                    {selected?.name && <ModelSelectorName>{selected.name}</ModelSelectorName>}
+                </PromptInputButton>
+            </ModelSelectorTrigger>
+            <ModelSelectorContent>
+                <ModelSelectorInput placeholder="Search models..." />
+                <ModelSelectorList>
+                    <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                    {chefs.map((chef) => (
+                        <ModelSelectorGroup heading={chef} key={chef}>
+                            {models
+                                .filter((m) => m.chef === chef)
+                                .map((m) => (
+                                    <ModelSelectorItem
+                                        key={m.id}
+                                        value={m.id}
+                                        onSelect={() => onSelect(m.id)}
+                                    >
+                                        <ModelSelectorLogo provider={m.slug} />
+                                        <ModelSelectorName>{m.name}</ModelSelectorName>
+                                        <ModelSelectorLogoGroup>
+                                            {m.providers.map((p) => (
+                                                <ModelSelectorLogo key={p} provider={p} />
+                                            ))}
+                                        </ModelSelectorLogoGroup>
+                                        {model === m.id ? (
+                                            <CheckIcon className="ml-auto size-4" />
+                                        ) : (
+                                            <div className="ml-auto size-4" />
+                                        )}
+                                    </ModelSelectorItem>
+                                ))}
+                        </ModelSelectorGroup>
+                    ))}
+                </ModelSelectorList>
+            </ModelSelectorContent>
+        </ModelSelector>
     );
-};
+}
 
 export default function ChatView() {
-    const [model, setModel] = useState<string>(models[0].id);
+    const [model, setModel] = useState(models[0].id);
     const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
-    const [text, setText] = useState<string>('');
-    const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
+    const [text, setText] = useState('');
+    const [useWebSearch, setUseWebSearch] = useState(false);
 
-    // 通过后端发送消息，SSE 流式接收
     const { messages, status, sendMessage } = useChat();
 
     const selectedModelData = useMemo(() => models.find((m) => m.id === model), [model]);
 
-    // 根据所选模型推导 Provider 类型
     const providerKind: ProviderKind = useMemo(
         () => (selectedModelData?.slug as ProviderKind) ?? 'openai',
         [selectedModelData],
     );
 
+    // 发送消息
     const handleSubmit = useCallback(
         (message: PromptInputMessage) => {
             const hasText = Boolean(message.text?.trim());
-            const hasAttachments = Boolean(message.files?.length);
-
-            if (!(hasText || hasAttachments)) {
-                return;
-            }
+            if (!hasText && !message.files?.length) return;
 
             if (message.files?.length) {
                 toast.success('Files attached', {
@@ -209,28 +228,16 @@ export default function ChatView() {
     );
 
     const handleSuggestionClick = useCallback(
-        (suggestion: string) => {
-            sendMessage(providerKind, model, suggestion);
-        },
+        (suggestion: string) => sendMessage(providerKind, model, suggestion),
         [providerKind, model, sendMessage],
     );
-
-    const handleTranscriptionChange = useCallback((transcript: string) => {
-        setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-    }, []);
-
-    const handleTextChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setText(event.target.value);
-    }, []);
-
-    const toggleWebSearch = useCallback(() => {
-        setUseWebSearch((prev) => !prev);
-    }, []);
 
     const handleModelSelect = useCallback((modelId: string) => {
         setModel(modelId);
         setModelSelectorOpen(false);
     }, []);
+
+    const attachments = usePromptInputAttachments();
 
     const isSubmitDisabled = useMemo(
         () => !text.trim() || status === 'streaming',
@@ -239,64 +246,12 @@ export default function ChatView() {
 
     return (
         <div className="relative flex size-full flex-col divide-y overflow-hidden">
-            <Conversation>
-                <ConversationContent>
-                    {messages.map(({ versions, ...message }) => (
-                        <MessageBranch defaultBranch={0} key={message.key}>
-                            <MessageBranchContent>
-                                {versions.map((version) => (
-                                    <Message
-                                        from={message.from}
-                                        key={`${message.key}-${version.id}`}
-                                    >
-                                        <div>
-                                            {message.sources?.length && (
-                                                <Sources>
-                                                    <SourcesTrigger
-                                                        count={message.sources.length}
-                                                    />
-                                                    <SourcesContent>
-                                                        {message.sources.map((source) => (
-                                                            <Source
-                                                                href={source.href}
-                                                                key={source.href}
-                                                                title={source.title}
-                                                            />
-                                                        ))}
-                                                    </SourcesContent>
-                                                </Sources>
-                                            )}
-                                            {message.reasoning && (
-                                                <Reasoning duration={message.reasoning.duration}>
-                                                    <ReasoningTrigger />
-                                                    <ReasoningContent>
-                                                        {message.reasoning.content}
-                                                    </ReasoningContent>
-                                                </Reasoning>
-                                            )}
-                                            <MessageContent>
-                                                <MessageResponse>{version.content}</MessageResponse>
-                                            </MessageContent>
-                                        </div>
-                                    </Message>
-                                ))}
-                            </MessageBranchContent>
-                            {versions.length > 1 && (
-                                <MessageBranchSelector>
-                                    <MessageBranchPrevious />
-                                    <MessageBranchPage />
-                                    <MessageBranchNext />
-                                </MessageBranchSelector>
-                            )}
-                        </MessageBranch>
-                    ))}
-                </ConversationContent>
-                <ConversationScrollButton />
-            </Conversation>
+            <MessageList messages={messages} />
+
             <div className="grid shrink-0 gap-4 pt-4">
                 <Suggestions className="px-4">
                     {suggestions.map((suggestion) => (
-                        <SuggestionItem
+                        <Suggestion
                             key={suggestion}
                             onClick={handleSuggestionClick}
                             suggestion={suggestion}
@@ -306,10 +261,22 @@ export default function ChatView() {
                 <div className="w-full px-4 pb-4">
                     <PromptInput globalDrop multiple onSubmit={handleSubmit}>
                         <PromptInputHeader>
-                            <PromptInputAttachmentsDisplay />
+                            {attachments.files.length > 0 && (
+                                <Attachments variant="inline">
+                                    {attachments.files.map((file) => (
+                                        <Attachment key={file.id} data={file} onRemove={() => attachments.remove(file.id)}>
+                                            <AttachmentPreview />
+                                            <AttachmentRemove />
+                                        </Attachment>
+                                    ))}
+                                </Attachments>
+                            )}
                         </PromptInputHeader>
                         <PromptInputBody>
-                            <PromptInputTextarea onChange={handleTextChange} value={text} />
+                            <PromptInputTextarea
+                                onChange={(e) => setText(e.target.value)}
+                                value={text}
+                            />
                         </PromptInputBody>
                         <PromptInputFooter>
                             <PromptInputTools>
@@ -320,62 +287,32 @@ export default function ChatView() {
                                     </PromptInputActionMenuContent>
                                 </PromptInputActionMenu>
                                 <PromptInputButton
-                                    onClick={toggleWebSearch}
+                                    onClick={() => setUseWebSearch((v) => !v)}
                                     variant={useWebSearch ? 'default' : 'ghost'}
                                 >
                                     <GlobeIcon size={16} />
                                     <span>Search</span>
                                 </PromptInputButton>
-                                <ModelSelector
-                                    onOpenChange={setModelSelectorOpen}
+                                <ModelPicker
+                                    model={model}
                                     open={modelSelectorOpen}
-                                >
-                                    <ModelSelectorTrigger asChild>
-                                        <PromptInputButton>
-                                            {selectedModelData?.slug && (
-                                                <ModelSelectorLogo
-                                                    provider={selectedModelData.slug}
-                                                />
-                                            )}
-                                            {selectedModelData?.name && (
-                                                <ModelSelectorName>
-                                                    {selectedModelData.name}
-                                                </ModelSelectorName>
-                                            )}
-                                        </PromptInputButton>
-                                    </ModelSelectorTrigger>
-                                    <ModelSelectorContent>
-                                        <ModelSelectorInput placeholder="Search models..." />
-                                        <ModelSelectorList>
-                                            <ModelSelectorEmpty>
-                                                No models found.
-                                            </ModelSelectorEmpty>
-                                            {chefs.map((chef) => (
-                                                <ModelSelectorGroup heading={chef} key={chef}>
-                                                    {models
-                                                        .filter((m) => m.chef === chef)
-                                                        .map((m) => (
-                                                            <ModelItem
-                                                                isSelected={model === m.id}
-                                                                key={m.id}
-                                                                m={m}
-                                                                onSelect={handleModelSelect}
-                                                            />
-                                                        ))}
-                                                </ModelSelectorGroup>
-                                            ))}
-                                        </ModelSelectorList>
-                                    </ModelSelectorContent>
-                                </ModelSelector>
+                                    onOpenChange={setModelSelectorOpen}
+                                    onSelect={handleModelSelect}
+                                />
                             </PromptInputTools>
                             <div className="flex min-w-0 items-center gap-1">
                                 <SpeechInput
                                     className="shrink-0"
-                                    onTranscriptionChange={handleTranscriptionChange}
+                                    onTranscriptionChange={(t) =>
+                                        setText((prev) => (prev ? `${prev} ${t}` : t))
+                                    }
                                     size="sm"
                                     variant="ghost"
                                 />
-                                <PromptInputSubmit disabled={isSubmitDisabled} status={status} />
+                                <PromptInputSubmit
+                                    disabled={isSubmitDisabled}
+                                    status={status}
+                                />
                             </div>
                         </PromptInputFooter>
                     </PromptInput>

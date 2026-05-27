@@ -1,12 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Session, Message, ProviderKind } from '../types';
-
-function generateId(): string {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+import { generateId } from '../utils';
 
 export function useSessions() {
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -52,7 +46,7 @@ export function useSessions() {
         [],
     );
 
-    const addMessage = useCallback((sessionId: string, message: Message) => {
+    const appendMessage = useCallback((sessionId: string, message: Message) => {
         setSessions((prev) =>
             prev.map((s) =>
                 s.id === sessionId
@@ -89,7 +83,7 @@ export function useSessions() {
         createSession,
         deleteSession,
         updateSession,
-        addMessage,
+        appendMessage,
         updateMessage,
     };
 }
