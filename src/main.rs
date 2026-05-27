@@ -1,8 +1,9 @@
+use std::sync::Arc;
 use axum::{
     Json, Router, extract::State,
     routing::{get, post}
 };
-use std::sync::Arc;
+use tokio::net::TcpListener;
 
 use datum::{Config, AdaptState, TokenUsage, UsageStats};
 use adapt::{anthropic, gemini, openai};
@@ -38,7 +39,7 @@ async fn main() {
         .with_state(state);
 
     let addr = format!("{}:{}", config.host, config.port);
-    let listener = tokio::net::TcpListener::bind(&addr)
+    let listener = TcpListener::bind(&addr)
         .await
         .expect(&format!("Failed to bind to {}", addr));
 

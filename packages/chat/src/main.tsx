@@ -3,9 +3,9 @@ import ReactDOM from 'react-dom/client';
 import App from './app';
 import './index.css';
 
-// Initialize theme from localStorage
-const stored = localStorage.getItem('crewride-theme');
-if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+// 初始化主题
+const theme = localStorage.getItem('theme');
+if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark');
 }
 

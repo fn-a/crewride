@@ -12,26 +12,26 @@ import {
     PanelLeftIcon,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/tooltip';
-import type { Conversation } from '@crewride/core';
+import type { Session } from '@crewride/core';
 
 interface SidebarProps {
-    conversations: Conversation[];
+    sessions: Session[];
     activeId: string | null;
     collapsed: boolean;
-    onSelectConversation: (id: string) => void;
-    onCreateConversation: () => void;
-    onDeleteConversation: (id: string) => void;
+    onSelectSession: (id: string) => void;
+    onCreateSession: () => void;
+    onDeleteSession: (id: string) => void;
     onToggleCollapse: () => void;
     onNavigateSettings: () => void;
 }
 
 export function Sidebar({
-    conversations,
+    sessions,
     activeId,
     collapsed,
-    onSelectConversation,
-    onCreateConversation,
-    onDeleteConversation,
+    onSelectSession,
+    onCreateSession,
+    onDeleteSession,
     onToggleCollapse,
     onNavigateSettings,
 }: SidebarProps) {
@@ -59,7 +59,7 @@ export function Sidebar({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    onClick={onCreateConversation}
+                                    onClick={onCreateSession}
                                     type="button"
                                 >
                                     <PlusIcon className="size-4" />
@@ -90,22 +90,22 @@ export function Sidebar({
                 </div>
             </div>
 
-            {/* Conversation list */}
+            {/* Session list */}
             <ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
-                    {conversations.map((conv) => (
-                        <ConversationItem
-                            key={conv.id}
-                            conversation={conv}
-                            isActive={conv.id === activeId}
+                    {sessions.map((session) => (
+                        <SessionItem
+                            key={session.id}
+                            session={session}
+                            isActive={session.id === activeId}
                             collapsed={collapsed}
-                            onSelect={() => onSelectConversation(conv.id)}
-                            onDelete={() => onDeleteConversation(conv.id)}
+                            onSelect={() => onSelectSession(session.id)}
+                            onDelete={() => onDeleteSession(session.id)}
                         />
                     ))}
-                    {conversations.length === 0 && !collapsed && (
+                    {sessions.length === 0 && !collapsed && (
                         <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                            No conversations yet. Click + to start
+                            No sessions yet. Click + to start
                         </p>
                     )}
                 </div>
@@ -134,14 +134,14 @@ export function Sidebar({
     );
 }
 
-function ConversationItem({
-    conversation,
+function SessionItem({
+    session,
     isActive,
     collapsed,
     onSelect,
     onDelete,
 }: {
-    conversation: Conversation;
+    session: Session;
     isActive: boolean;
     collapsed: boolean;
     onSelect: () => void;
@@ -166,7 +166,7 @@ function ConversationItem({
                         <MessageSquareIcon className="size-4" />
                     </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{conversation.title}</TooltipContent>
+                <TooltipContent side="right">{session.title}</TooltipContent>
             </Tooltip>
         );
     }
@@ -188,7 +188,7 @@ function ConversationItem({
                 className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden py-2 pl-2 text-left text-sm"
             >
                 <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{conversation.title}</span>
+                <span className="truncate">{session.title}</span>
             </button>
             <Button
                 variant="ghost"

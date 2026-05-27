@@ -11,11 +11,7 @@ export default defineConfig({
     ],
     build: {
         lib: {
-            entry: {
-                index: 'src/index.ts',
-                mocks: 'src/mocks.ts',
-                tests: 'src/tests.ts',
-            },
+            entry: 'src/index.ts',
             formats: ['es', 'cjs'],
             fileName: (format, entryName) => {
                 const ext = format === 'es' ? 'mjs' : 'cjs';

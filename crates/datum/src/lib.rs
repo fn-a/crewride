@@ -1,3 +1,5 @@
+use std::env;
+use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Context, Result, anyhow};
@@ -170,7 +172,7 @@ impl Config {
     /// 加载配置 (优先级: 配置文件 < 环境变量 < CLI 参数)
     pub fn load() -> Config {
         // 1. 尝试从配置文件加载
-        if let Ok(config_path) = std::env::var("CREWRIDE_CONFIG_FILE") {
+        if let Ok(config_path) = env::var("CREWRIDE_CONFIG_FILE") {
             println!("📄 Loading config from: {}", config_path);
             match Config::from_file(&config_path) {
                 Ok(config) => {
@@ -209,7 +211,7 @@ impl Config {
     /// 从 JSON 或 YAML 文件加载配置
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let contents = std::fs::read_to_string(path)
+        let contents = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
         let mut config: Config = match path
@@ -268,30 +270,30 @@ impl Config {
         for provider in &mut self.providers {
             match provider.r#type {
                 Provider::OpenAI => {
-                    if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+                    if let Ok(api_key) = env::var("OPENAI_API_KEY") {
                         provider.api_key = Some(api_key);
                     }
-                    if let Ok(api_url) = std::env::var("OPENAI_API_URL") {
+                    if let Ok(api_url) = env::var("OPENAI_API_URL") {
                         provider.api_url = Some(api_url.parse().with_context(|| "Invalid OPENAI_API_URL format")?);
                     } else if provider.api_url.is_none() {
                         provider.api_url = Some(openai_api_url()?);
                     }
                 }
                 Provider::Anthropic => {
-                    if let Ok(api_key) = std::env::var("ANTHROPIC_API_KEY") {
+                    if let Ok(api_key) = env::var("ANTHROPIC_API_KEY") {
                         provider.api_key = Some(api_key);
                     }
-                    if let Ok(api_url) = std::env::var("ANTHROPIC_API_URL") {
+                    if let Ok(api_url) = env::var("ANTHROPIC_API_URL") {
                         provider.api_url = Some(api_url.parse().with_context(|| "Invalid ANTHROPIC_API_URL format")?);
                     } else if provider.api_url.is_none() {
                         provider.api_url = Some(anthropic_api_url()?);
                     }
                 }
                 Provider::Gemini => {
-                    if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
+                    if let Ok(api_key) = env::var("GEMINI_API_KEY") {
                         provider.api_key = Some(api_key);
                     }
-                    if let Ok(api_url) = std::env::var("GEMINI_API_URL") {
+                    if let Ok(api_url) = env::var("GEMINI_API_URL") {
                         provider.api_url = Some(api_url.parse().with_context(|| "Invalid GEMINI_API_URL format")?);
                     } else if provider.api_url.is_none() {
                         provider.api_url = Some(gemini_api_url()?);
@@ -301,12 +303,12 @@ impl Config {
         }
 
         // 读取 host
-        if let Ok(host) = std::env::var("CREWRIDE_PROXY_HOST") {
+        if let Ok(host) = env::var("CREWRIDE_PROXY_HOST") {
             self.host = host;
         }
 
         // 读取 port
-        if let Ok(port) = std::env::var("CREWRIDE_PROXY_PORT") {
+        if let Ok(port) = env::var("CREWRIDE_PROXY_PORT") {
             if let Ok(port_num) = port.parse() {
                 self.port = port_num;
             }

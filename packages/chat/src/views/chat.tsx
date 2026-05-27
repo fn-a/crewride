@@ -57,15 +57,27 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/reas
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/sources';
 import { SpeechInput } from '@/components/speech-input';
 import { Suggestion, Suggestions } from '@/components/suggestion';
-import type { MessageType } from '@crewride/core';
-import {
-    initMessages,
-    models,
-    chefs,
-    suggestions,
-    mockResponses,
-    delay,
-} from '@crewride/core/mocks';
+import { useChat, type ProviderKind } from '@crewride/core';
+
+// 模型列表
+const models = [
+    { chef: 'OpenAI', slug: 'openai', id: 'gpt-4o', name: 'GPT-4o', providers: ['openai', 'azure'] },
+    { chef: 'OpenAI', slug: 'openai', id: 'gpt-4o-mini', name: 'GPT-4o Mini', providers: ['openai', 'azure'] },
+    { chef: 'Anthropic', slug: 'anthropic', id: 'claude-sonnet-4-20250514', name: 'Claude 4 Sonnet', providers: ['anthropic', 'azure', 'google', 'amazon-bedrock'] },
+    { chef: 'Anthropic', slug: 'anthropic', id: 'claude-opus-4-20250514', name: 'Claude 4 Opus', providers: ['anthropic', 'azure', 'google', 'amazon-bedrock'] },
+    { chef: 'Google', slug: 'google', id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', providers: ['google'] },
+];
+
+const chefs = ['OpenAI', 'Anthropic', 'Google'];
+
+const suggestions = [
+    'What are the latest trends in AI?',
+    'How does machine learning work?',
+    'Explain quantum computing',
+    'Best practices for React development',
+    'Tell me about TypeScript benefits',
+    'How to optimize database queries?',
+];
 
 const AttachmentItem = ({
     attachment,
@@ -142,7 +154,7 @@ const ModelItem = ({
 
     return (
         <ModelSelectorItem onSelect={handleSelect} value={m.id}>
-            <ModelSelectorLogo provider={m.chefSlug} />
+            <ModelSelectorLogo provider={m.slug} />
             <ModelSelectorName>{m.name}</ModelSelectorName>
             <ModelSelectorLogoGroup>
                 {m.providers.map((provider) => (
@@ -163,96 +175,26 @@ export default function ChatView() {
     const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
     const [text, setText] = useState<string>('');
     const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
-    const [status, setStatus] = useState<'submitted' | 'streaming' | 'ready' | 'error'>('ready');
-    const [messages, setMessages] = useState<MessageType[]>(initMessages);
-    const [, setStreamingMessageId] = useState<string | null>(null);
+
+    // 通过后端发送消息，SSE 流式接收
+    const { messages, status, sendMessage } = useChat();
 
     const selectedModelData = useMemo(() => models.find((m) => m.id === model), [model]);
 
-    const updateMessageContent = useCallback((messageId: string, newContent: string) => {
-        setMessages((prev) =>
-            prev.map((msg) => {
-                if (msg.versions.some((v) => v.id === messageId)) {
-                    return {
-                        ...msg,
-                        versions: msg.versions.map((v) =>
-                            v.id === messageId ? { ...v, content: newContent } : v,
-                        ),
-                    };
-                }
-                return msg;
-            }),
-        );
-    }, []);
-
-    const streamResponse = useCallback(
-        async (messageId: string, content: string) => {
-            setStatus('streaming');
-            setStreamingMessageId(messageId);
-
-            const words = content.split(' ');
-            let currentContent = '';
-
-            for (const [i, word] of words.entries()) {
-                currentContent += (i > 0 ? ' ' : '') + word;
-                updateMessageContent(messageId, currentContent);
-                await delay(Math.random() * 100 + 50);
-            }
-
-            setStatus('ready');
-            setStreamingMessageId(null);
-        },
-        [updateMessageContent],
-    );
-
-    const addUserMessage = useCallback(
-        (content: string) => {
-            const userMessage: MessageType = {
-                from: 'user',
-                key: `user-${Date.now()}`,
-                versions: [
-                    {
-                        content,
-                        id: `user-${Date.now()}`,
-                    },
-                ],
-            };
-
-            setMessages((prev) => [...prev, userMessage]);
-
-            setTimeout(() => {
-                const assistantMessageId = `assistant-${Date.now()}`;
-                const randomResponse =
-                    mockResponses[Math.floor(Math.random() * mockResponses.length)];
-
-                const assistantMessage: MessageType = {
-                    from: 'assistant',
-                    key: `assistant-${Date.now()}`,
-                    versions: [
-                        {
-                            content: '',
-                            id: assistantMessageId,
-                        },
-                    ],
-                };
-
-                setMessages((prev) => [...prev, assistantMessage]);
-                streamResponse(assistantMessageId, randomResponse);
-            }, 500);
-        },
-        [streamResponse],
+    // 根据所选模型推导 Provider 类型
+    const providerKind: ProviderKind = useMemo(
+        () => (selectedModelData?.slug as ProviderKind) ?? 'openai',
+        [selectedModelData],
     );
 
     const handleSubmit = useCallback(
         (message: PromptInputMessage) => {
-            const hasText = Boolean(message.text);
+            const hasText = Boolean(message.text?.trim());
             const hasAttachments = Boolean(message.files?.length);
 
             if (!(hasText || hasAttachments)) {
                 return;
             }
-
-            setStatus('submitted');
 
             if (message.files?.length) {
                 toast.success('Files attached', {
@@ -260,18 +202,17 @@ export default function ChatView() {
                 });
             }
 
-            addUserMessage(message.text || 'Sent with attachments');
+            sendMessage(providerKind, model, message.text || 'Sent with attachments');
             setText('');
         },
-        [addUserMessage],
+        [providerKind, model, sendMessage],
     );
 
     const handleSuggestionClick = useCallback(
         (suggestion: string) => {
-            setStatus('submitted');
-            addUserMessage(suggestion);
+            sendMessage(providerKind, model, suggestion);
         },
-        [addUserMessage],
+        [providerKind, model, sendMessage],
     );
 
     const handleTranscriptionChange = useCallback((transcript: string) => {
@@ -292,7 +233,7 @@ export default function ChatView() {
     }, []);
 
     const isSubmitDisabled = useMemo(
-        () => !(text.trim() || status) || status === 'streaming',
+        () => !text.trim() || status === 'streaming',
         [text, status],
     );
 
@@ -391,9 +332,9 @@ export default function ChatView() {
                                 >
                                     <ModelSelectorTrigger asChild>
                                         <PromptInputButton>
-                                            {selectedModelData?.chefSlug && (
+                                            {selectedModelData?.slug && (
                                                 <ModelSelectorLogo
-                                                    provider={selectedModelData.chefSlug}
+                                                    provider={selectedModelData.slug}
                                                 />
                                             )}
                                             {selectedModelData?.name && (
