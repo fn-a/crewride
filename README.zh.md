@@ -67,18 +67,14 @@ curl -N -X POST http://localhost:8899/v1/messages \
       "model": "gpt-4",
       "name": "OpenAI GPT-4",
       "provider": "openai-official",
-      "replace": {
-        "api_key": true,
-        "model": "gpt-5"
-      }
+      "byokey": false,
+      "remodel": "gpt-5"
     },
     {
       "model": "claude-3-sonnet",
       "name": "Anthropic Claude-3-Sonnet",
       "provider": "anthropic-official",
-      "replace": {
-        "api_key": false
-      }
+      "byokey": true
     },
     {
       "model": "gemini-pro",
@@ -122,14 +118,12 @@ models:
   - model: "gpt-4"
     name: "OpenAI GPT-4"
     provider: "openai-official"
-    replace: 
-      - api_key: true
-        model: "gpt-5"
+    byokey: false
+    remodel: "gpt-5"
   - model: "claude-3-sonnet"
     name: "Anthropic Claude-3-Sonnet"
     provider: "anthropic-official"
-    replace: 
-      - api_key: false
+    byokey: true
   - model: "gemini-pro"
     name: "Google Gemini Pro"
     provider: "gemini-official"

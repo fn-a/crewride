@@ -40,14 +40,8 @@ pub struct ModelConfig {
     #[serde(default)]
     pub provider: Option<String>,
     #[serde(default)]
-    pub replace: Option<ReplaceConfig>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReplaceConfig {
-    #[serde(default)]
-    pub api_key: bool,
-    pub model: Option<String>,
+    pub byokey: bool,
+    pub remodel: Option<String>,
 }
 
 // ============ Token 用量 ============
@@ -203,7 +197,7 @@ impl Config {
         // 3. 使用默认配置 + 环境变量
         let mut config = Config::default();
         if let Err(e) = config.merge_env() {
-            eprintln!("⚠️  Warning: Failed to merge environment variables: {}", e);
+            eprintln!("⚠️ Warning: Failed to merge environment variables: {}", e);
         }
         config
     }

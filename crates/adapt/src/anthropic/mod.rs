@@ -32,12 +32,17 @@ pub async fn handler(
         .map(|key| key.to_string())
         .unwrap_or_default();
     let mut provider_config = None;
-    let mut replace_config = None;
+    let mut replace_api_key = api_key.is_empty();
     // 查找模型配置
     if let Some(model_config) = state.config.find_model(&req.model) {
+        // BYOK 表示使用用户携带的 API Key，将不进行替换
+        replace_api_key = !model_config.byokey;
+        // 使用配置的模型名称替换请求中的模型名称
+        if let Some(remodel) = &model_config.remodel {
+            req.model = remodel.clone();
+        }
         // 如果模型有供应商配置
         if let Some(provider) = &model_config.provider {
-            replace_config = model_config.replace.clone();
             provider_config = state.config.find_provider(provider)
         }
     }
@@ -45,16 +50,8 @@ pub async fn handler(
         provider_config = state.config.give_provider(Provider::Anthropic);
     }
     let provider_config = provider_config.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mut replace_api_key = api_key.is_empty();
-    if let Some(replace_config) = replace_config {
-        replace_api_key = replace_config.api_key;
-        // 使用配置的模型名称替换请求中的模型名称
-        if let Some(model_config) = &replace_config.model {
-            req.model = model_config.clone();
-        }
-    }
     if replace_api_key {
-        // 使用配置的API Key替换请求头中的API key
+        // 使用配置的 API Key 替换请求头中的 API key
         api_key = provider_config.api_key.clone()
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
     }
