@@ -7,8 +7,13 @@ export type {
     MessageTooling,
     MessageSource,
     TokenUsage,
+    ModelInfo,
 } from './types';
 
-export { useSessions, useChat, useStats, useProvider } from './hooks';
+export {
+    ProviderKinds 
+} from './types';
 
-export { BACKEND_URL } from './config';
+export { useSessions, useChat, useStats, useProvider, useModels } from './hooks';
+
+export { BASE_URL as BACKEND_URL } from './config';

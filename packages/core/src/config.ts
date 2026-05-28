@@ -1,2 +1,2 @@
-// 后端代理地址
-export const BACKEND_URL = 'http://127.0.0.1:8899';
+// 接口基本地址
+export const BASE_URL = new URL('/', location.origin).href;

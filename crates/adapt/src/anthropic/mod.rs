@@ -7,7 +7,10 @@ use axum::{
 use url::Url;
 use aidapter::{
     Provider,
-    anthropic::prefix::{AnthropicChatRequest, AnthropicChatResponse},
+    anthropic::prefix::{
+        AnthropicChatRequest, AnthropicChatResponse, 
+        AnthropicModelList, AnthropicModelInfo,
+    },
     openai::prefix::OpenAIChatRequest,
     gemini::prefix::GeminiChatRequest,
 };
@@ -66,6 +69,22 @@ pub async fn handler(
         Provider::OpenAI => into_openai(state, req, api_url, api_key, retry.as_ref()).await,
         Provider::Gemini => into_gemini(state, req, api_url, api_key, retry.as_ref()).await,
     }
+}
+
+pub fn models(state: &AdaptState) -> AnthropicModelList {
+    let data = state.config.models
+        .iter()
+        .map(|m| AnthropicModelInfo {
+            id: m.model.clone(),
+            model_type: "model".into(),
+            display_name: m.name.clone().unwrap_or_else(|| m.model.clone()),
+            created_at: "2024-01-01T00:00:00Z".into(),
+            capabilities: None,
+        })
+        .collect::<Vec<_>>();
+    let first_id = data.first().map(|e| e.id.clone());
+    let last_id = data.last().map(|e| e.id.clone());
+    AnthropicModelList { data, has_more: false, first_id, last_id }
 }
 
 // ============ Anthropic → Anthropic 直通 ============

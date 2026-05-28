@@ -9,6 +9,7 @@ datum = { workspace = true }
 axum = { workspace = true }
 url = { workspace = true }
 reqwest = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }

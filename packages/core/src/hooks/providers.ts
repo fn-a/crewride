@@ -3,20 +3,20 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { LanguageModel } from 'ai';
 import type { ProviderKind } from '../types';
-import { BACKEND_URL } from '../config';
+import { BASE_URL } from '../config';
 
 const openai = createOpenAI({
-    baseURL: `${BACKEND_URL}/v1`,
+    baseURL: `${BASE_URL}/v1`,
     apiKey: 'proxy',
 });
 
 const anthropic = createAnthropic({
-    baseURL: `${BACKEND_URL}/v1`,
+    baseURL: `${BASE_URL}/v1`,
     apiKey: 'proxy',
 });
 
 const gemini = createGoogleGenerativeAI({
-    baseURL: `${BACKEND_URL}/v1beta`,
+    baseURL: `${BASE_URL}/v1beta`,
     apiKey: 'proxy',
 });
 

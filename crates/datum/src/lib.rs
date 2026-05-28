@@ -29,7 +29,6 @@ pub struct ProviderConfig {
     pub api_url: Option<Url>,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    #[serde(default)]
     pub retry: Option<RetryConfig>,
 }
 
@@ -39,8 +38,9 @@ pub struct ModelConfig {
     pub name: Option<String>,
     #[serde(default)]
     pub provider: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub byokey: bool,
+    #[serde(skip_serializing)]
     pub remodel: Option<String>,
 }
 
@@ -343,6 +343,16 @@ impl Default for Config {
             port: default_port(),
             providers: Vec::new(),
             models: Vec::new(),
+        }
+    }
+}
+
+impl ProviderConfig {
+    pub fn provider(&self) -> String {
+        match self.r#type {
+            Provider::OpenAI => "openai".to_string(),
+            Provider::Anthropic => "anthropic".to_string(),
+            Provider::Gemini => "gemini".to_string(),
         }
     }
 }

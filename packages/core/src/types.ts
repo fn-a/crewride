@@ -1,6 +1,8 @@
 import type { ToolUIPart } from 'ai';
 
-export type ProviderKind = 'openai' | 'anthropic' | 'gemini';
+export const ProviderKinds = ['openai', 'anthropic', 'gemini'] as const;
+
+export type ProviderKind = typeof ProviderKinds[number];
 
 export interface ProviderConfig {
     apiKey?: string;
@@ -55,4 +57,10 @@ export interface TokenUsage {
     input_tokens: number;
     output_tokens: number;
     tokens: number;
+}
+
+export interface ModelInfo {
+    model: string;
+    name: string;
+    provider: ProviderKind;
 }

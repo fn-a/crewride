@@ -7,7 +7,10 @@ use axum::{
 use url::Url;
 use aidapter::{
     Provider,
-    gemini::prefix::{GeminiChatRequest, GeminiChatResponse},
+    gemini::prefix::{
+        GeminiChatRequest, GeminiChatResponse,
+        GeminiModelList, GeminiModelInfo,
+    },
     openai::prefix::OpenAIChatRequest,
     anthropic::prefix::AnthropicChatRequest,
 };
@@ -84,6 +87,29 @@ pub async fn handler(
         },
         _ => Err(StatusCode::NOT_FOUND),
     }
+}
+
+pub fn models(state: &AdaptState) -> GeminiModelList {
+    let models = state.config.models
+        .iter()
+        .map(|m| GeminiModelInfo {
+            name: format!("models/{}", m.model),
+            display_name: m.name.clone().unwrap_or_else(|| m.model.clone()),
+            description: m.name.clone().unwrap_or_else(|| m.model.clone()),
+            supported_generation_methods: vec![
+                "generateContent".into(),
+                "streamGenerateContent".into(),
+            ],
+            version: "v1".to_string(),
+            base_model_id: Some(m.model.clone()),
+            input_token_limit: 0,
+            output_token_limit: 0,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+        })
+        .collect::<Vec<_>>();
+    GeminiModelList { models, next_page_token: None }
 }
 
 // ============ Gemini → Gemini 直通 ============

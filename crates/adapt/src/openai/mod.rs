@@ -7,7 +7,10 @@ use axum::{
 use url::Url;
 use aidapter::{
     Provider,
-    openai::prefix::{OpenAIChatRequest, OpenAIChatResponse},
+    openai::prefix::{
+        OpenAIChatRequest, OpenAIChatResponse,
+        OpenAIModelList, OpenAIModelInfo,
+    },
     anthropic::prefix::AnthropicChatRequest,
     gemini::prefix::GeminiChatRequest,
 };
@@ -67,6 +70,28 @@ pub async fn handler(
         Provider::Anthropic => into_anthropic(state, req, api_url, api_key, retry.as_ref()).await,
         Provider::Gemini => into_gemini(state, req, api_url, api_key, retry.as_ref()).await,
     }
+}
+
+pub fn models(state: &AdaptState) -> OpenAIModelList {
+    let providers = state.config.providers
+        .iter()
+        .filter(|p| p.enabled && p.r#type == Provider::OpenAI)
+        .map(|p| p.key.clone())
+        .collect::<Vec<_>>();
+    let data = state.config.models
+        .iter()
+        .filter(|m| m.provider.as_ref()
+            .map(|p| providers.contains(p))
+            .unwrap_or(true)
+        )
+        .map(|m| OpenAIModelInfo {
+            id: m.model.clone(),
+            object: "model".into(),
+            created: 0,
+            owned_by: m.provider.clone().unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+    OpenAIModelList { object: "list".into(), data }
 }
 
 // ============ OpenAI → OpenAI 直通 ============
