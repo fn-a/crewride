@@ -7,6 +7,8 @@ use axum::{
     routing::{get, post},
 };
 use tokio::net::TcpListener;
+use tower_http::services::ServeDir;
+use tower_http::cors::{ self, CorsLayer };
 
 use datum::{Config, AdaptState, TokenUsage, UsageStats};
 use adapt::{anthropic, gemini, openai};
@@ -63,7 +65,6 @@ async fn main() {
         // Anthropic 格式端点
         .route("/v1/messages", post(anthropic::handler))
         // OpenAI 格式端点
-        .route("/v1/responses", post(openai::handler))
         .route("/v1/chat/completions", post(openai::handler))
         // Gemini 格式端点 (使用通配符捕获 model:method 部分)
         .route("/v1beta/models/{*path}", post(gemini::handler))
@@ -75,12 +76,15 @@ async fn main() {
         .route("/api/stats", get(stats))
         // 模型列表查询，通用格式
         .route("/api/models", get(models))
-        .with_state(state);
+        .with_state(state)
+        // 静态文件服务
+        .fallback_service(ServeDir::new(&config.public))
+        .layer(CorsLayer::new().allow_origin(cors::Any).allow_methods(cors::Any).allow_headers(cors::Any));
 
     let addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&addr)
         .await
-        .expect(&format!("Failed to bind to {}", addr));
+        .expect(&format!("Failed bind address to {}", addr));
 
     println!("🚀 Tri-directional streaming proxy on http://{}", addr);
     println!("📡 Adapter Routes:");
@@ -90,11 +94,21 @@ async fn main() {
     println!("   - POST /v1beta/models/{{model}}:generateContent (Gemini format)");
     println!("   - POST /v1beta/models/{{model}}:streamGenerateContent (Gemini streaming)");
     println!("✨ Streaming support enabled for all routes");
+    println!("📡 Static File Routes:");
+    println!("   - GET  {{path}} (Static files from {})", config.public);
     println!("📡 Model List Routes:");
     println!("   - GET  /v1/models (OpenAI / Anthropic model list)");
     println!("   - GET  /v1beta/models (Gemini model list)");
-    println!("📊 API Routes:");
+    println!("📡 API Routes:");
     println!("   - GET  /api/stats (Usage statistics)");
 
-    axum::serve(listener, app).await.unwrap();
+    // 优雅关闭
+    let signal = async {
+        tokio::signal::ctrl_c().await.expect("failed to listen for ctrl+c");
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(signal)
+        .await
+        .unwrap();
 }

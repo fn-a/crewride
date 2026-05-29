@@ -1,21 +1,12 @@
 import { useState, useCallback, useRef } from 'react';
 import { streamText } from 'ai';
 import { useProvider } from './providers';
-import type { ProviderKind, Message } from '../types';
-
-// 构建消息对象
-function toMessage(id: string, role: 'user' | 'assistant', content: string): Message {
-    return {
-        key: id,
-        from: role,
-        versions: [{ id, content }],
-    };
-}
+import type { ProviderKind, Message, ChatState } from '../types';
 
 // 通过 Rust 后端代理发送聊天请求，由 @ai-sdk/* 处理格式差异和 SSE 流解析
 export function useChat() {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [status, setStatus] = useState<'submitted' | 'streaming' | 'ready' | 'error'>('ready');
+    const [status, setStatus] = useState<ChatState>('ready');
     const abortRef = useRef<AbortController | null>(null);
 
     const sendMessage = useCallback(async (providerKind: ProviderKind, modelId: string, text: string) => {
@@ -26,8 +17,16 @@ export function useChat() {
         // 添加用户消息 + 空的助手占位
         setMessages((prev) => [
             ...prev,
-            toMessage(userMsgId, 'user', text),
-            toMessage(assistantMsgId, 'assistant', ''),
+            {
+                key: userMsgId,
+                from: 'user',
+                versions: [{ id: userMsgId, content: text }],
+            },
+            {
+                key: assistantMsgId,
+                from: 'assistant',
+                versions: [{ id: assistantMsgId, content: '' }],
+            },
         ]);
 
         setStatus('submitted');

@@ -6,17 +6,17 @@ import type { ProviderKind } from '../types';
 import { BASE_URL } from '../config';
 
 const openai = createOpenAI({
-    baseURL: `${BASE_URL}/v1`,
+    baseURL: new URL('/v1', BASE_URL).href,
     apiKey: 'proxy',
 });
 
 const anthropic = createAnthropic({
-    baseURL: `${BASE_URL}/v1`,
+    baseURL: new URL('/v1', BASE_URL).href,
     apiKey: 'proxy',
 });
 
 const gemini = createGoogleGenerativeAI({
-    baseURL: `${BASE_URL}/v1beta`,
+    baseURL: new URL('/v1beta', BASE_URL).href,
     apiKey: 'proxy',
 });
 

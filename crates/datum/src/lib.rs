@@ -15,6 +15,8 @@ pub struct Config {
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
+    #[serde(default = "default_public")]
+    pub public: String,
     pub providers: Vec<ProviderConfig>,
     #[serde(default)]
     pub models: Vec<ModelConfig>,
@@ -122,6 +124,10 @@ fn default_host() -> String {
 
 fn default_port() -> u16 {
     8899
+}
+
+fn default_public() -> String {
+    "/public".to_string()
 }
 
 fn default_true() -> bool {
@@ -341,6 +347,7 @@ impl Default for Config {
         Config {
             host: default_host(),
             port: default_port(),
+            public: default_public(),
             providers: Vec::new(),
             models: Vec::new(),
         }

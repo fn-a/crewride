@@ -11,7 +11,7 @@
         "build:chat": "pnpm --filter @crewride/chat build",
         "format": "prettier --write \"packages/**/*.{ts,tsx,css,json}\"",
         "format:check": "prettier --check \"packages/**/*.{ts,tsx,css,json}\"",
-        "typecheck": "pnpm -r run typecheck",
+        "check": "pnpm -r run typecheck",
         "clean": "rimraf packages/*/dist packages/*/.tsbuildinfo"
     },
     "prettier": {

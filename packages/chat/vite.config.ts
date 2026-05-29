@@ -5,6 +5,9 @@ import unpluginIcons from 'unplugin-icons/vite';
 import { ExternalPackageIconLoader } from 'unplugin-icons/loaders';
 import path from 'node:path';
 
+const BASE_DIR = path.resolve(import.meta.dirname, '../');
+const ROOT_DIR = path.resolve(BASE_DIR, '../');
+
 export default defineConfig({
     plugins: [
         react(),
@@ -16,9 +19,14 @@ export default defineConfig({
             },
         }),
     ],
+    build: {
+        outDir: path.resolve(ROOT_DIR, 'dist'),
+        emptyOutDir: true,
+    },
     resolve: {
         alias: {
-            '@': path.resolve(import.meta.dirname, './src'),
+            '@': path.resolve(BASE_DIR, 'chat/src'),
+            '@crewride/core': path.resolve(BASE_DIR, 'core/src'),
         },
     },
     server: {

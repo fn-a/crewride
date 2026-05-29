@@ -15,6 +15,7 @@ resolver = "3"
 
 [workspace.dependencies]
 axum = "^0.8"
+tower-http = { version = "^0.6", features = ["fs", "cors"] }
 tokio = { version = "^1.48", features = ["full"] }
 reqwest = { version = "^0.12", features = ["json", "stream"] }
 serde = { version = "^1.0", features = ["derive"] }
@@ -32,6 +33,7 @@ datum = { path = "crates/datum" }
 adapt = { workspace = true }
 datum = { workspace = true }
 axum = { workspace = true }
+tower-http = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 url = { workspace = true }

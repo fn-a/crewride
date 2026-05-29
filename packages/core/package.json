@@ -23,7 +23,7 @@
     "scripts": {
         "dev": "vite build --watch",
         "build": "vite build",
-        "typecheck": "tsc --noEmit",
+        "check": "tsc --noEmit",
         "clean": "rimraf dist"
     },
     "dependencies": {
