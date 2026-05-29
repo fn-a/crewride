@@ -24,10 +24,10 @@ const gemini = createGoogleGenerativeAI({
 export function useProvider(kind: ProviderKind, modelId: string): LanguageModel {
     switch (kind) {
         case 'openai':
-            return openai(modelId);
+            return openai.chat(modelId);
         case 'anthropic':
-            return anthropic(modelId);
+            return anthropic.chat(modelId);
         case 'gemini':
-            return gemini(modelId);
+            return gemini.chat(modelId);
     }
 }
