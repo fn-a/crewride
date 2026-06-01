@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 use axum::{
-    Json, response::Response, http::StatusCode,
+    Json, response::Response, http::StatusCode, body::Bytes,
     extract::{State, Path, Query}, response::IntoResponse,
 };
 use url::Url;
@@ -10,6 +10,7 @@ use aidapter::{
     gemini::prefix::{
         GeminiChatRequest, GeminiChatResponse,
         GeminiModelList, GeminiModelInfo,
+        GeminiEmbedRequest, GeminiBatchEmbedRequest,
     },
     openai::prefix::OpenAIChatRequest,
     anthropic::prefix::AnthropicChatRequest,
@@ -25,12 +26,14 @@ pub mod openai;
 // ============ Gemini 路由处理器 ============
 
 /// 解析 path 参数来提取 model 和 method
-/// 格式: {model}:generateContent 或 {model}:streamGenerateContent
+/// 格式：
+/// {model}:generateContent 或 {model}:streamGenerateContent
+/// {model}:batchEmbedContent 或 {model}:embedContent
 pub async fn handler(
     State(state): State<Arc<AdaptState>>,
     Path(path): Path<String>,
     Query(query): Query<HashMap<String, String>>,
-    Json(req): Json<GeminiChatRequest>,
+    body: Bytes,
 ) -> Result<Response, StatusCode> {
     // 解析路径：model:method
     let (mut model, method) = match path.rsplit_once(':') {
@@ -71,6 +74,8 @@ pub async fn handler(
     match method {
         "generateContent" => {
             // Gemini API 端点: POST /v1beta/models/{model}:generateContent
+            let req: GeminiChatRequest = serde_json::from_slice(&body)
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
             match provider_config.r#type {
                 Provider::OpenAI =>  into_openai(state, model, req, api_url, api_key, retry.as_ref()).await,
                 Provider::Anthropic => into_anthropic(state, model, req, api_url, api_key, retry.as_ref()).await,
@@ -79,10 +84,32 @@ pub async fn handler(
         },
         "streamGenerateContent" => {
             // Gemini API 流式端点: POST /v1beta/models/{model}:streamGenerateContent
+            let req: GeminiChatRequest = serde_json::from_slice(&body)
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
             match provider_config.r#type {
-                Provider::OpenAI =>  stream::into_openai(state, model, req, api_url, api_key, retry.as_ref()).await,
-                Provider::Anthropic => stream::into_anthropic(state, model, req, api_url, api_key, retry.as_ref()).await,
-                Provider::Gemini => stream::straight(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::OpenAI =>  streaming::into_openai(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::Anthropic => streaming::into_anthropic(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::Gemini => streaming::straight(state, model, req, api_url, api_key, retry.as_ref()).await,
+            }
+        },
+        "embedContent" => {
+            // Gemini API 嵌入端点: POST /v1beta/models/{model}:embedContent
+            let req: GeminiEmbedRequest = serde_json::from_slice(&body)
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            match provider_config.r#type {
+                Provider::Gemini => embedding::straight(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::OpenAI => embedding::into_openai(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::Anthropic => Err(StatusCode::BAD_REQUEST), // Anthropic 不支持 Embedding
+            }
+        },
+        "batchEmbedContent" => {
+            // Gemini API 批量嵌入端点: POST /v1beta/models/{model}:batchEmbedContent
+            let req: GeminiBatchEmbedRequest = serde_json::from_slice(&body)
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            match provider_config.r#type {
+                Provider::Gemini => embedding::straight_batch(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::OpenAI => embedding::into_openai_batch(state, model, req, api_url, api_key, retry.as_ref()).await,
+                Provider::Anthropic => Err(StatusCode::BAD_REQUEST), // Anthropic 不支持 Batch Embedding
             }
         },
         _ => Err(StatusCode::NOT_FOUND),
@@ -99,6 +126,8 @@ pub fn models(state: &AdaptState) -> GeminiModelList {
             supported_generation_methods: vec![
                 "generateContent".into(),
                 "streamGenerateContent".into(),
+                "embedContent".into(),
+                "batchEmbedContent".into(),
             ],
             version: "v1".to_string(),
             base_model_id: Some(m.model.clone()),
@@ -224,7 +253,7 @@ async fn into_anthropic(
 
 }
 
-pub mod stream {
+pub mod streaming {
     use std::sync::Arc;
     use axum::{
         response::Response, http::StatusCode,
@@ -347,4 +376,199 @@ pub mod stream {
             anthropic::from_anthropic_streaming(response).await
         }
     }
+}
+
+pub mod embedding {
+    use std::sync::Arc;
+    use axum::{
+        response::Response, http::StatusCode,
+        Json, response::IntoResponse,
+    };
+    use url::Url;
+    use aidapter::{
+        gemini::prefix::{
+            GeminiEmbedRequest, GeminiEmbedResponse,
+            GeminiBatchEmbedRequest, GeminiBatchEmbedResponse,
+        },
+        openai::prefix::{
+            OpenAIEmbedRequest, OpenAIEmbedResponse,
+        },
+    };
+    use datum::{AdaptState, RetryConfig, TokenUsage};
+    use crate::retry;
+
+    // ============ Gemini → Gemini 直通 (单条) ============
+
+    pub async fn straight(
+        state: Arc<AdaptState>,
+        model: String,
+        req: GeminiEmbedRequest,
+        api_url: Url,
+        api_key: String,
+        retry: Option<&RetryConfig>,
+    ) -> Result<Response, StatusCode> {
+        println!("⚡ Gemini embedding passthrough");
+
+        let api_url = api_url
+            .join(&format!("/v1beta/models/{}:embedContent?key={}", model, api_key))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let response = retry::dispatch(retry, ||
+            state.client
+                .post(api_url.clone())
+                .header("content-type", "application/json")
+                .json(&req)
+        ).await?;
+
+        if !response.status().is_success() {
+            Err(StatusCode::BAD_GATEWAY)
+        } else {
+            let resp = response
+                .json::<GeminiEmbedResponse>()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            state.stats.record(&TokenUsage {
+                requests: 1,
+                tokens: 0,
+                input_tokens: 0,
+                output_tokens: 0,
+            });
+            Ok(Json(resp).into_response())
+        }
+    }
+
+    // ============ Gemini → Gemini 直通 (批量) ============
+
+    pub async fn straight_batch(
+        state: Arc<AdaptState>,
+        model: String,
+        req: GeminiBatchEmbedRequest,
+        api_url: Url,
+        api_key: String,
+        retry: Option<&RetryConfig>,
+    ) -> Result<Response, StatusCode> {
+        println!("⚡ Gemini batch embedding passthrough");
+
+        let api_url = api_url
+            .join(&format!("/v1beta/models/{}:batchEmbedContent?key={}", model, api_key))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let response = retry::dispatch(retry, ||
+            state.client
+                .post(api_url.clone())
+                .header("content-type", "application/json")
+                .json(&req)
+        ).await?;
+
+        if !response.status().is_success() {
+            Err(StatusCode::BAD_GATEWAY)
+        } else {
+            let resp = response
+                .json::<GeminiBatchEmbedResponse>()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            state.stats.record(&TokenUsage {
+                requests: 1,
+                tokens: 0,
+                input_tokens: 0,
+                output_tokens: 0,
+            });
+            Ok(Json(resp).into_response())
+        }
+    }
+
+    // ============ Gemini → OpenAI 转换 (单条) ============
+
+    pub async fn into_openai(
+        state: Arc<AdaptState>,
+        model: String,
+        req: GeminiEmbedRequest,
+        api_url: Url,
+        api_key: String,
+        retry: Option<&RetryConfig>,
+    ) -> Result<Response, StatusCode> {
+        println!("🔄 Gemini embedding → OpenAI");
+
+        // 转换请求: GeminiEmbedRequest → OpenAIEmbedRequest
+        let mut openai_req = OpenAIEmbedRequest::from(&req);
+        openai_req.model = model.clone();
+
+        let api_url = api_url
+            .join("/v1/embeddings")
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let response = retry::dispatch(retry, ||
+            state.client
+                .post(api_url.clone())
+                .header("authorization", format!("Bearer {}", &api_key))
+                .header("content-type", "application/json")
+                .json(&openai_req)
+        ).await?;
+
+        if !response.status().is_success() {
+            Err(StatusCode::BAD_GATEWAY)
+        } else {
+            let openai_resp = response
+                .json::<OpenAIEmbedResponse>()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            state.stats.record(&TokenUsage {
+                requests: 1,
+                tokens: openai_resp.usage.total_tokens as u64,
+                input_tokens: openai_resp.usage.prompt_tokens as u64,
+                output_tokens: 0,
+            });
+            // 转换响应: OpenAIEmbedResponse → GeminiEmbedResponse
+            let gemini_resp = GeminiEmbedResponse::from(&openai_resp);
+            Ok(Json(gemini_resp).into_response())
+        }
+    }
+
+    // ============ Gemini → OpenAI 转换 (批量) ============
+
+    pub async fn into_openai_batch(
+        state: Arc<AdaptState>,
+        model: String,
+        req: GeminiBatchEmbedRequest,
+        api_url: Url,
+        api_key: String,
+        retry: Option<&RetryConfig>,
+    ) -> Result<Response, StatusCode> {
+        println!("🔄 Gemini batch embedding → OpenAI");
+
+        // 转换请求: GeminiBatchEmbedRequest → OpenAIEmbedRequest
+        let mut openai_req = OpenAIEmbedRequest::from(&req);
+        openai_req.model = model.clone();
+
+        let api_url = api_url
+            .join("/v1/embeddings")
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let response = retry::dispatch(retry, ||
+            state.client
+                .post(api_url.clone())
+                .header("authorization", format!("Bearer {}", &api_key))
+                .header("content-type", "application/json")
+                .json(&openai_req)
+        ).await?;
+
+        if !response.status().is_success() {
+            Err(StatusCode::BAD_GATEWAY)
+        } else {
+            let openai_resp = response
+                .json::<OpenAIEmbedResponse>()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            state.stats.record(&TokenUsage {
+                requests: 1,
+                tokens: openai_resp.usage.total_tokens as u64,
+                input_tokens: openai_resp.usage.prompt_tokens as u64,
+                output_tokens: 0,
+            });
+            // 转换响应: OpenAIEmbedResponse → GeminiBatchEmbedResponse
+            let gemini_resp = GeminiBatchEmbedResponse::from(&openai_resp);
+            Ok(Json(gemini_resp).into_response())
+        }
+    }
+
 }

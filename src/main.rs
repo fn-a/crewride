@@ -66,6 +66,8 @@ async fn main() {
         .route("/v1/messages", post(anthropic::handler))
         // OpenAI 格式端点
         .route("/v1/chat/completions", post(openai::handler))
+        // OpenAI Embedding 端点
+        .route("/v1/embeddings", post(openai::embedding))
         // Gemini 格式端点 (使用通配符捕获 model:method 部分)
         .route("/v1beta/models/{*path}", post(gemini::handler))
         // 模型列表，根据请求头识别 OpenAI / Anthropic 格式
@@ -89,10 +91,12 @@ async fn main() {
     println!("🚀 Tri-directional streaming proxy on http://{}", addr);
     println!("📡 Adapter Routes:");
     println!("   - POST /v1/messages (Anthropic format)");
-    println!("   - POST /v1/responses (OpenAI format)");
     println!("   - POST /v1/chat/completions (OpenAI format)");
+    println!("   - POST /v1/embeddings (OpenAI embedding format)");
     println!("   - POST /v1beta/models/{{model}}:generateContent (Gemini format)");
     println!("   - POST /v1beta/models/{{model}}:streamGenerateContent (Gemini streaming)");
+    println!("   - POST /v1beta/models/{{model}}:embedContent (Gemini embedding)");
+    println!("   - POST /v1beta/models/{{model}}:batchEmbedContent (Gemini batch embedding)");
     println!("✨ Streaming support enabled for all routes");
     println!("📡 Static File Routes:");
     println!("   - GET  {{path}} (Static files from {})", config.public);

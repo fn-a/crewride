@@ -20,7 +20,6 @@ const DEFAULT_MODEL_ID: &str = "claude";
 // ============ 流式转换: Anthropic → OpenAI ============
 
 pub async fn from_anthropic_streaming(response: Reswponse) -> Result<Response, StatusCode> {
-
     let byte_stream = response.bytes_stream();
     let event_stream = byte_stream.eventsource();
 
