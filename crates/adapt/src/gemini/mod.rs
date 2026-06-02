@@ -5,6 +5,7 @@ use axum::{
     extract::{State, Path, Query}, response::IntoResponse,
 };
 use url::Url;
+use anyhow::Result;
 use aidapter::{
     Provider,
     gemini::prefix::{
@@ -16,9 +17,9 @@ use aidapter::{
     anthropic::prefix::AnthropicChatRequest,
 };
 
-use datum::{AdaptState, RetryConfig};
+use datum::{config::RetryConfig, record::TokenUsage};
 
-use crate::{retry, usage};
+use crate::{AdaptState, retry};
 
 pub mod anthropic;
 pub mod openai;
@@ -171,7 +172,7 @@ async fn straight(
             .json::<GeminiChatResponse>()
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        state.stats.record(&usage::extract(&resp));
+        state.stats.record(&TokenUsage::from(&resp));
         Ok(Json(resp).into_response())
     }
 
@@ -266,9 +267,9 @@ pub mod streaming {
         anthropic::prefix::AnthropicChatRequest,
     };
 
-    use datum::{AdaptState, RetryConfig};
+    use datum::config::RetryConfig;
 
-    use crate::retry;
+    use crate::{AdaptState, retry};
     use super::{openai, anthropic};
 
     // ============ Gemini → Gemini 直通Stream ============
@@ -394,8 +395,8 @@ pub mod embedding {
             OpenAIEmbedRequest, OpenAIEmbedResponse,
         },
     };
-    use datum::{AdaptState, RetryConfig, TokenUsage};
-    use crate::retry;
+    use datum::{config::RetryConfig, record::TokenUsage};
+    use crate::{AdaptState, retry};
 
     // ============ Gemini → Gemini 直通 (单条) ============
 

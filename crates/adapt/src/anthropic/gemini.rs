@@ -6,13 +6,14 @@ use axum::{
 use reqwest::Response as Reswponse;
 use futures::StreamExt;
 use eventsource_stream::Eventsource;
+use anyhow::Result;
 
 use aidapter::{
     gemini::prefix::{GeminiChatResponse, GeminiStreamChunk},
     anthropic::prefix::{AnthropicChatResponse, AnthropicStreamChunk},
 };
 
-use datum::TokenUsage;
+use datum::record::TokenUsage;
 
 // ============ 流式转换: Gemini → Anthropic ============
 

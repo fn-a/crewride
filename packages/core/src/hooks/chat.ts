@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { streamText } from 'ai';
 import { useProvider } from './providers';
-import type { ProviderKind, Message, ChatState } from '../types';
+import type { ProviderKind, Message, MessageTooling, ChatState } from '../types';
 
 // 通过 Rust 后端代理发送聊天请求，由 @ai-sdk/* 处理格式差异和 SSE 流解析
 export function useChat() {
@@ -46,6 +46,57 @@ export function useChat() {
                 model,
                 messages: [...history, { role: 'user' as const, content: text }],
                 abortSignal: controller.signal,
+                onStepFinish(step) {
+                    // 捕获思考过程
+                    if (step.reasoning) {
+                        const reasoningText = typeof step.reasoning === 'string'
+                            ? step.reasoning
+                            : (step.reasoning as { text?: string }).text ?? '';
+                        if (reasoningText) {
+                            setMessages((prev) =>
+                                prev.map((m) =>
+                                    m.key === assistantMsgId
+                                        ? { ...m, reasoning: { content: reasoningText, duration: 0 } }
+                                        : m,
+                                ),
+                            );
+                        }
+                    }
+
+                    // 捕获工具调用
+                    if (step.toolCalls?.length || step.toolResults?.length) {
+                        const tcMap = new Map<string, MessageTooling>();
+                        // 先处理 toolCalls（创建条目）
+                        for (const tc of (step.toolCalls || [])) {
+                            tcMap.set(tc.toolCallId, {
+                                name: tc.toolName,
+                                description: '',
+                                status: 'input-available',
+                                parameters: tc.input,
+                                result: undefined,
+                                error: undefined,
+                            });
+                        }
+                        // 再处理 toolResults（填充结果）
+                        for (const tr of (step.toolResults || [])) {
+                            const existing = tcMap.get(tr.toolCallId);
+                            if (existing) {
+                                existing.result = tr.output;
+                                existing.status = 'output-available';
+                            }
+                        }
+                        const toolList = Array.from(tcMap.values());
+                        if (toolList.length) {
+                            setMessages((prev) =>
+                                prev.map((m) =>
+                                    m.key === assistantMsgId
+                                        ? { ...m, tools: toolList }
+                                        : m,
+                                ),
+                            );
+                        }
+                    }
+                },
             });
 
             let fullContent = '';

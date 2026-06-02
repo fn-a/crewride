@@ -5,6 +5,7 @@ use axum::{
     http::{ HeaderMap, header::AUTHORIZATION }
 };
 use url::Url;
+use anyhow::Result;
 use aidapter::{
     Provider,
     openai::prefix::{
@@ -15,9 +16,9 @@ use aidapter::{
     gemini::prefix::GeminiChatRequest,
 };
 
-use datum::{AdaptState, RetryConfig};
+use datum::{config::RetryConfig, record::TokenUsage};
 
-use crate::{retry, usage};
+use crate::{AdaptState, retry};
 
 pub mod anthropic;
 pub mod gemini;
@@ -175,7 +176,7 @@ async fn straight(
                 .json::<OpenAIChatResponse>()
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            state.stats.record(&usage::extract(&resp));
+            state.stats.record(&TokenUsage::from(&resp));
             Ok(Json(resp).into_response())
         }
     }
@@ -280,8 +281,8 @@ pub mod embedding {
             GeminiBatchEmbedResponse,GeminiBatchEmbedRequest
         },
     };
-    use datum::{AdaptState, RetryConfig, TokenUsage};
-    use crate::retry;
+    use datum::{config::RetryConfig, record::TokenUsage};
+    use crate::{AdaptState, retry};
 
     // ============ OpenAI → OpenAI 直通 ============
 

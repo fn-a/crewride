@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::http::StatusCode;
 use reqwest::{Response, RequestBuilder};
 
-use datum::RetryConfig;
+use datum::config::RetryConfig;
 
 /// Send an HTTP request with retry logic.
 ///

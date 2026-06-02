@@ -6,13 +6,14 @@ use axum::{
 use reqwest::Response as Reswponse;
 use futures::StreamExt;
 use eventsource_stream::Eventsource;
+use anyhow::Result;
 
 use aidapter::{
     anthropic::prefix::{AnthropicChatResponse, AnthropicStreamEvent, AnthropicStreamChunk},
     gemini::prefix::{GeminiChatResponse, GeminiStreamChunk},
 };
 
-use datum::TokenUsage;
+use datum::record::TokenUsage;
 
 const DEFAULT_CHUNK_ID: &str = "msg_anthropic";
 const DEFAULT_MODEL_ID: &str = "claude";

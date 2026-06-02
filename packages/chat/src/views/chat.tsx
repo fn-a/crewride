@@ -12,6 +12,12 @@ import {
     ConversationContent,
     ConversationScrollButton,
 } from '@/components/conversation';
+import { Badge } from '@/components/badge';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/collapsible';
 import {
     Message,
     MessageBranch,
@@ -123,6 +129,43 @@ function MessageList({ messages }: { messages: MessageData[] }) {
                                                 </ReasoningContent>
                                             </Reasoning>
                                         )}
+                                        {message.tools?.map((tool, i) => (
+                                            <Collapsible key={`${tool.name}-${i}`} className="my-2 rounded-lg border bg-muted/30">
+                                                <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-sm">
+                                                    <span className="font-medium">{tool.name}</span>
+                                                    <Badge variant={
+                                                        tool.status === 'output-available' ? 'default' :
+                                                        tool.status === 'input-available' ? 'secondary' : 'outline'
+                                                    }>
+                                                        {tool.error ? 'error' : tool.result ? 'done' : 'pending'}
+                                                    </Badge>
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="space-y-2 px-3 pb-3">
+                                                    <div>
+                                                        <p className="mb-1 text-xs text-muted-foreground">Parameters</p>
+                                                        <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
+                                                            {JSON.stringify(tool.parameters, null, 2)}
+                                                        </pre>
+                                                    </div>
+                                                    {tool.result && (
+                                                        <div>
+                                                            <p className="mb-1 text-xs text-muted-foreground">Result</p>
+                                                            <pre className="max-h-48 overflow-auto rounded bg-muted p-2 text-xs whitespace-pre-wrap">
+                                                                {tool.result}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                    {tool.error && (
+                                                        <div>
+                                                            <p className="mb-1 text-xs text-destructive">Error</p>
+                                                            <pre className="max-h-32 overflow-auto rounded bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap">
+                                                                {tool.error}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </CollapsibleContent>
+                                            </Collapsible>
+                                        ))}
                                         <MessageContent>
                                             <MessageResponse>{version.content}</MessageResponse>
                                         </MessageContent>

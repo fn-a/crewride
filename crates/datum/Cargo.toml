@@ -11,4 +11,6 @@ serde_yaml = { workspace = true }
 url = { workspace = true }
 anyhow = { workspace = true }
 reqwest = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
 aidapter = { workspace = true }

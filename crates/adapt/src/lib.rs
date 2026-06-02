@@ -2,8 +2,16 @@
 //!
 //! 支持OpenAI，Anthropic，Gemini API之间的无缝切换和转换
 
+use reqwest::Client;
+use datum::{record::UsageStats, config::Config};
+
 pub mod anthropic;
 pub mod gemini;
 pub mod openai;
 pub mod retry;
-pub mod usage;
+
+pub struct AdaptState {
+    pub client: Client,
+    pub config: Config,
+    pub stats: UsageStats,
+}

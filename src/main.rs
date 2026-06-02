@@ -10,8 +10,12 @@ use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
 use tower_http::cors::{ self, CorsLayer };
 
-use datum::{Config, AdaptState, TokenUsage, UsageStats};
-use adapt::{anthropic, gemini, openai};
+use datum::{
+    config::Config, session::SessionStore,
+    record::{TokenUsage, UsageStats},
+};
+use adapt::{AdaptState, anthropic, gemini, openai};
+use agent::{AgentState, tools::ToolContext, chat};
 
 // 统计查询端点
 async fn stats(State(state): State<Arc<AdaptState>>) -> Json<TokenUsage> {
@@ -55,10 +59,19 @@ async fn main() {
     // 验证 API keys
     config.validate();
 
-    let state = Arc::new(AdaptState {
+    let adapt_state = Arc::new(AdaptState {
         client: reqwest::Client::new(),
         config: config.clone(),
         stats: UsageStats::default(),
+    });
+
+    let mut toolctx = ToolContext::new(&config.agent.workspace);
+    toolctx.filte(&config.agent.tools);
+
+    let agent_state = Arc::new(AgentState {
+        adapter: adapt_state.clone(),
+        toolctx,
+        sessions: SessionStore::new(&config.directory()),
     });
 
     let app = Router::new()
@@ -78,7 +91,10 @@ async fn main() {
         .route("/api/stats", get(stats))
         // 模型列表查询，通用格式
         .route("/api/models", get(models))
-        .with_state(state)
+        .with_state(adapt_state)
+        // Agent 端点（原生格式，会话管理 + 工具执行）
+        .nest("/api/agent", chat::router())
+        .with_state(agent_state)
         // 静态文件服务
         .fallback_service(ServeDir::new(&config.public))
         .layer(CorsLayer::new().allow_origin(cors::Any).allow_methods(cors::Any).allow_headers(cors::Any));
@@ -105,6 +121,12 @@ async fn main() {
     println!("   - GET  /v1beta/models (Gemini model list)");
     println!("📡 API Routes:");
     println!("   - GET  /api/stats (Usage statistics)");
+    println!("   - GET  /api/models (Model list)");
+    println!("📡 Chat Routes:");
+    println!("   - POST /api/agent/v1/chat/completions (OpenAI chat)");
+    println!("   - POST /api/agent/v1/messages (Anthropic chat)");
+    println!("   - POST /api/agent/v1beta/models/{{model}}:generateContent (Gemini chat)");
+    println!("   - POST /api/agent/v1beta/models/{{model}}:streamGenerateContent (Gemini streaming chat)");
 
     // 优雅关闭
     let signal = async {

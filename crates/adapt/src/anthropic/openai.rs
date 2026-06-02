@@ -6,13 +6,14 @@ use axum::{
 use reqwest::Response as Reswponse;
 use futures::StreamExt;
 use eventsource_stream::Eventsource;
+use anyhow::Result;
 
 use aidapter::{
     openai::prefix::{OpenAIChatResponse, OpenAIStreamChunk},
     anthropic::prefix::{AnthropicChatResponse, AnthropicStreamChunk},
 };
 
-use datum::TokenUsage;
+use datum::record::TokenUsage;
 
 // ============ 流式转换: OpenAI → Anthropic ============
 
