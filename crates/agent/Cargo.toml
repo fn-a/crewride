@@ -15,7 +15,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
 aidapter = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
-tokio-stream = "^0.1"
+eventsource-stream = { workspace = true }

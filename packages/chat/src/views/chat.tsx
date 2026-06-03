@@ -259,12 +259,12 @@ function ModelPicker({
     );
 }
 
-export default function ChatView() {
+export default function ChatView({ sessionId }: { sessionId?: string | null }) {
     const [activeModel, setActiveModel] = useState<ModelInfo | null>(null);
     const [speechText, setSpeechText] = useState('');
     const [useSearch, setUseSearch] = useState(false);
 
-    const { messages, status, sendMessage } = useChat();
+    const { messages, status, sendMessage } = useChat(sessionId);
 
     // 发送消息
     const handleSubmit = useCallback(

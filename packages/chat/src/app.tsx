@@ -62,7 +62,7 @@ function ChatLayout() {
                 <Header>
                     <Theme />
                 </Header>
-                <ChatView />
+                <ChatView sessionId={activeId} />
             </main>
         </div>
     );

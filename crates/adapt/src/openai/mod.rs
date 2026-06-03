@@ -149,8 +149,8 @@ async fn straight(
     api_key: String,
     retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
-    let is_streaming = req.stream.unwrap_or(false);
-    println!("⚡ OpenAI passthrough (stream={})", is_streaming);
+    let streaming = req.stream.unwrap_or(false);
+    println!("⚡ OpenAI passthrough (stream={})", streaming);
 
     let api_url = api_url
         .join("/v1/chat/completions")
@@ -167,7 +167,7 @@ async fn straight(
     if !response.status().is_success() {
         Err(StatusCode::BAD_GATEWAY)
     } else {
-        if is_streaming {
+        if streaming {
             let stream = response.bytes_stream();
             let body = Body::from_stream(stream);
             Ok((StatusCode::OK, [("content-type", "text/event-stream")], body).into_response())
@@ -191,8 +191,8 @@ async fn into_anthropic(
     api_key: String,
     retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
-    let is_streaming = req.stream.unwrap_or(false);
-    println!("🔄 OpenAI → Anthropic (stream={})", is_streaming);
+    let streaming = req.stream.unwrap_or(false);
+    println!("🔄 OpenAI → Anthropic (stream={})", streaming);
 
     let api_url = api_url
         .join("/v1/messages")
@@ -210,7 +210,7 @@ async fn into_anthropic(
     if !response.status().is_success() {
         Err(StatusCode::BAD_GATEWAY)
     } else {
-        if is_streaming {
+        if streaming {
             anthropic::from_anthropic_streaming(response).await
         } else {
             let (resp, usage) = anthropic::from_anthropic_response(response).await?;
@@ -229,14 +229,14 @@ async fn into_gemini(
     api_key: String,
     retry: Option<&RetryConfig>,
 ) -> Result<Response, StatusCode> {
-    let is_streaming = req.stream.unwrap_or(false);
-    println!("🔄 OpenAI → Gemini (stream={})", is_streaming);
+    let streaming = req.stream.unwrap_or(false);
+    println!("🔄 OpenAI → Gemini (stream={})", streaming);
 
     // 转换请求: OpenAI -> Gemini
     let gemini_req = GeminiChatRequest::from(&req);
 
     // 构建URL，根据是否流式选择不同端点
-    let endpoint = if is_streaming {
+    let endpoint = if streaming {
         format!("/v1beta/models/{}:streamGenerateContent?key={}&alt=sse", req.model, api_key)
     } else {
         format!("/v1beta/models/{}:generateContent?key={}", req.model, api_key)
@@ -256,7 +256,7 @@ async fn into_gemini(
     if !response.status().is_success() {
         Err(StatusCode::BAD_GATEWAY)
     } else {
-        if is_streaming {
+        if streaming {
             gemini::from_gemini_streaming(response).await
         } else {
             let (resp, usage) = gemini::from_gemini_response(response).await?;

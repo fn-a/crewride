@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import type { TokenUsage } from '../types';
 import { BASE_URL } from '../config';
 
+const STATS_API = '/api/stats';
+
 // 查询后端 /stats 端点获取累计 token 统计
 export function useStats() {
     const [stats, setStats] = useState<TokenUsage | null>(null);
@@ -10,8 +12,8 @@ export function useStats() {
     const refresh = useCallback(async () => {
         setLoading(true);
         try {
-            const statsApi = new URL('/api/stats', BASE_URL);
-            const response = await fetch(statsApi);
+            const queryApi = new URL(STATS_API, BASE_URL);
+            const response = await fetch(queryApi);
             if (!response.ok) {
                 throw new Error(`Failed to fetch stats: ${response.status}`);
             }

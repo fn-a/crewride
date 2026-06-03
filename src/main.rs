@@ -1,55 +1,17 @@
 use std::sync::Arc;
-use std::collections::HashMap;
-use axum::{
-    Json, Router, extract::{State, OriginalUri},
-    http::HeaderMap,
-    response::{IntoResponse, Response},
-    routing::{get, post},
-};
+use axum::{Router, routing::{get, post, delete}};
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
-use tower_http::cors::{ self, CorsLayer };
+use tower_http::cors::{self, CorsLayer};
 
 use datum::{
     config::Config, session::SessionStore,
-    record::{TokenUsage, UsageStats},
+    record::UsageStats,
 };
 use adapt::{AdaptState, anthropic, gemini, openai};
 use agent::{AgentState, tools::ToolContext, chat};
 
-// 统计查询端点
-async fn stats(State(state): State<Arc<AdaptState>>) -> Json<TokenUsage> {
-    Json(state.stats.snapshot())
-}
-
-// 模型列表端点
-async fn models(
-    State(state): State<Arc<AdaptState>>,
-    OriginalUri(uri): OriginalUri,
-    headers: HeaderMap,
-) -> Response {
-    if uri.path().ends_with("/api/models") {
-        let providers: HashMap<String, String> = state.config.providers.iter()
-            .filter(|p| p.enabled)
-            .map(|p| (p.key.clone(), p.provider()))
-            .collect();
-        let mut models = state.config.models.clone();
-        let models = models.iter_mut()
-            .map(|m| {
-                if let Some(p) = m.provider.as_ref() {
-                    m.provider = providers.get(p).cloned();
-                }
-                m
-            }).collect::<Vec<_>>();
-        Json(models).into_response()
-    } else if uri.path().ends_with("/v1beta/models") {
-        Json(gemini::models(&state)).into_response()
-    } else if headers.get("x-api-key").is_some() {
-        Json(anthropic::models(&state)).into_response()
-    } else {
-        Json(openai::models(&state)).into_response()
-    }
-}
+mod handler;
 
 #[tokio::main]
 async fn main() {
@@ -84,14 +46,20 @@ async fn main() {
         // Gemini 格式端点 (使用通配符捕获 model:method 部分)
         .route("/v1beta/models/{*path}", post(gemini::handler))
         // 模型列表，根据请求头识别 OpenAI / Anthropic 格式
-        .route("/v1/models", get(models))
+        .route("/v1/models", get(handler::list_models))
         // 模型列表，根据请求路径识别 Gemini 格式
-        .route("/v1beta/models", get(models))
+        .route("/v1beta/models", get(handler::list_models))
         // 运行状态查询
-        .route("/api/stats", get(stats))
+        .route("/api/stats", get(handler::query_stats))
         // 模型列表查询，通用格式
-        .route("/api/models", get(models))
+        .route("/api/models", get(handler::list_models))
         .with_state(adapt_state)
+        // 会话列表查询
+        .route("/api/sessions", get(handler::list_sessions))
+        // 会话创建
+        .route("/api/sessions", post(handler::create_session))
+        // 会话删除
+        .route("/api/sessions/{id}", delete(handler::remove_session))
         // Agent 端点（原生格式，会话管理 + 工具执行）
         .nest("/api/agent", chat::router())
         .with_state(agent_state)
@@ -122,6 +90,7 @@ async fn main() {
     println!("📡 API Routes:");
     println!("   - GET  /api/stats (Usage statistics)");
     println!("   - GET  /api/models (Model list)");
+    println!("   - GET  /api/sessions (Session list)");
     println!("📡 Chat Routes:");
     println!("   - POST /api/agent/v1/chat/completions (OpenAI chat)");
     println!("   - POST /api/agent/v1/messages (Anthropic chat)");

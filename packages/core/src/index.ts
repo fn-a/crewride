@@ -16,4 +16,4 @@ export {
 
 export { useSessions, useChat, useStats, useProvider, useModels } from './hooks';
 
-export { BASE_URL as BACKEND_URL } from './config';
+export { BASE_URL, SESSION } from './config';

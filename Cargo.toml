@@ -17,6 +17,7 @@ resolver = "3"
 axum = "^0.8"
 tower-http = { version = "^0.6", features = ["fs", "cors"] }
 tokio = { version = "^1.48", features = ["full"] }
+tokio-stream = "^0.1"
 reqwest = { version = "^0.12", features = ["json", "stream"] }
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
@@ -26,6 +27,7 @@ chrono = "^0.4"
 url = { version = "^2.5", features = ["serde"] }
 anyhow = "^1.0"
 uuid = { version = "^1.23", features = ["v4"] }
+eventsource-stream = "^0.2"
 aidapter = "0.0.4"
 adapt = { path = "crates/adapt" }
 agent = { path = "crates/agent" }
@@ -39,6 +41,7 @@ axum = { workspace = true }
 tower-http = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
+anyhow = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true }
 aidapter = { workspace = true }

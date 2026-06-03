@@ -5,18 +5,20 @@ import type { LanguageModel } from 'ai';
 import type { ProviderKind } from '../types';
 import { BASE_URL } from '../config';
 
+const AGENT_API = '/api/agent';
+
 const openai = createOpenAI({
-    baseURL: new URL('/v1', BASE_URL).href,
+    baseURL: new URL(`${AGENT_API}/v1`, BASE_URL).href,
     apiKey: 'proxy',
 });
 
 const anthropic = createAnthropic({
-    baseURL: new URL('/v1', BASE_URL).href,
+    baseURL: new URL(`${AGENT_API}/v1`, BASE_URL).href,
     apiKey: 'proxy',
 });
 
 const gemini = createGoogleGenerativeAI({
-    baseURL: new URL('/v1beta', BASE_URL).href,
+    baseURL: new URL(`${AGENT_API}/v1beta`, BASE_URL).href,
     apiKey: 'proxy',
 });
 

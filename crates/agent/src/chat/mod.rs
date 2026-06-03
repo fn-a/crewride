@@ -5,9 +5,10 @@ use axum::{
     http::HeaderMap,
     response::Response,
     routing::post,
+    body::BodyDataStream
 };
 use anyhow::Result;
-use datum::session::Session;
+use eventsource_stream::EventStream;
 use crate::AgentState;
 
 pub const MAX_RUNNING_ROUND: usize = 8;
@@ -32,9 +33,13 @@ where for<'de> T: Deserialize<'de>
     Ok(result)
 }
 
-pub fn session_id(headers: &HeaderMap) -> String {
+pub async fn bytes_resp(resp: Response) -> EventStream<BodyDataStream> {
+    let stream = resp.into_body().into_data_stream();
+    let events = EventStream::new(stream);
+    events
+}
+
+pub fn session_id(headers: &HeaderMap) -> Option<String> {
     headers.get(HEADER_SESSION_ID)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| Session::id())
+        .and_then(|v| v.to_str().ok().map(|s| s.to_string()))
 }

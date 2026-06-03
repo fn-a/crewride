@@ -1,10 +1,27 @@
-import { useCallback, useMemo, useState } from 'react';
-import type { Session, Message, ProviderKind } from '../types';
-import { generateId } from '../utils';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Session, ProviderKind } from '../types';
+import { BASE_URL } from '../config';
+
+const SESSIONS_API = '/api/sessions';
 
 export function useSessions() {
     const [sessions, setSessions] = useState<Session[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
+
+    const refresh = useCallback(async () => {
+        const listApi = new URL(SESSIONS_API, BASE_URL);
+        const response = await fetch(listApi);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch sessions: ${response.status}`);
+        }
+        const list: Session[] = await response.json();
+        setSessions(list);
+    }, []);
+
+    // 首次加载从后端获取会话列表
+    useEffect(() => {
+        refresh();
+    }, []);
 
     const activeSession = useMemo(
         () => sessions.find((s) => s.id === activeId) ?? null,
@@ -12,17 +29,16 @@ export function useSessions() {
     );
 
     const createSession = useCallback(
-        (title: string, modelId: string, providerKind: ProviderKind) => {
-            const now = Date.now();
-            const session: Session = {
-                id: generateId(),
-                title,
-                modelId,
-                providerKind,
-                messages: [],
-                createdAt: now,
-                updatedAt: now,
-            };
+        async (title: string, model: string, provider: ProviderKind) => {
+            const crateApi = new URL(SESSIONS_API, BASE_URL);
+            const response = await fetch(crateApi, {
+                method: 'POST',
+                body: JSON.stringify({ title, model, provider }),
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to create session: ${response.status}`);
+            }
+            const session: Session = await response.json();
             setSessions((prev) => [session, ...prev]);
             setActiveId(session.id);
             return session;
@@ -30,60 +46,27 @@ export function useSessions() {
         [],
     );
 
-    const deleteSession = useCallback((id: string) => {
+    const deleteSession = useCallback(async (id: string) => {
+        // 调用后端删除会话
+        const deleteApi = new URL(`${SESSIONS_API}/${id}`, BASE_URL);
+        const response = await fetch(deleteApi, {
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to delete session: ${response.status}`);
+        }
+        // 刷新当前会话
         setSessions((prev) => prev.filter((s) => s.id !== id));
         setActiveId((prev) => (prev === id ? null : prev));
     }, []);
 
-    const updateSession = useCallback(
-        (id: string, updates: Partial<Session>) => {
-            setSessions((prev) =>
-                prev.map((s) =>
-                    s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s,
-                ),
-            );
-        },
-        [],
-    );
-
-    const appendMessage = useCallback((sessionId: string, message: Message) => {
-        setSessions((prev) =>
-            prev.map((s) =>
-                s.id === sessionId
-                    ? { ...s, messages: [...s.messages, message], updatedAt: Date.now() }
-                    : s,
-            ),
-        );
-    }, []);
-
-    const updateMessage = useCallback(
-        (sessionId: string, messageKey: string, updater: (msg: Message) => Message) => {
-            setSessions((prev) =>
-                prev.map((s) =>
-                    s.id === sessionId
-                        ? {
-                              ...s,
-                              messages: s.messages.map((m) =>
-                                  m.key === messageKey ? updater(m) : m,
-                              ),
-                              updatedAt: Date.now(),
-                          }
-                        : s,
-                ),
-            );
-        },
-        [],
-    );
-
     return {
         sessions,
         activeId,
-        activeSession,
         setActiveId,
+        activeSession,
         createSession,
         deleteSession,
-        updateSession,
-        appendMessage,
-        updateMessage,
+        refresh,
     };
 }

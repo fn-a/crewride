@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import type { ModelInfo } from '../types';
 import { BASE_URL } from '../config';
 
+const MODELS_API = '/api/models';
+
 // 查询后端 /models 端点获取模型列表
 export function useModels() {
     const [models, setModels] = useState<ModelInfo[]>([]);
@@ -10,8 +12,8 @@ export function useModels() {
     const refresh = useCallback(async () => {
         setLoading(true);
         try {
-            const modelsApi = new URL('/api/models', BASE_URL);
-            const response = await fetch(modelsApi);
+            const listApi = new URL(MODELS_API, BASE_URL);
+            const response = await fetch(listApi);
             if (!response.ok) {
                 throw new Error(`Failed to fetch models: ${response.status}`);
             }

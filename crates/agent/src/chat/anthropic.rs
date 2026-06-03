@@ -5,7 +5,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{
         IntoResponse, Response,
-        sse::{Event, Sse},
+        sse::{Event, Sse}
     },
 };
 use uuid::Uuid;
@@ -16,10 +16,12 @@ use tokio_stream::wrappers::ReceiverStream;
 use aidapter::anthropic::prefix::{
     AnthropicChatRequest, AnthropicChatResponse, AnthropicMessage, AnthropicRole,
     AnthropicContent, AnthropicContentPart, AnthropicTool, AnthropicUsage,
+    AnthropicStreamChunk, AnthropicStreamEvent, AnthropicContentDelta,
 };
 use adapt::anthropic;
+use datum::session::SessionSnippet;
 use crate::AgentState;
-use super::{deser_resp, session_id, MAX_RUNNING_ROUND};
+use super::{deser_resp, bytes_resp, session_id, MAX_RUNNING_ROUND};
 
 pub async fn handler(
     headers: HeaderMap,
@@ -31,7 +33,7 @@ pub async fn handler(
 
     let (tx, rx) = mpsc::channel::<Result<String, Infallible>>(32);
     tokio::spawn(async move {
-        let r = running(headers, state.clone(), req, &tx).await;
+        let r = running(headers, state, req, &tx).await;
         if let Err(e) = r {
             let _ = tx.send(Ok(format!("error:{}", e))).await;
         }
@@ -49,6 +51,7 @@ pub async fn handler(
             if data.starts_with("error:") {
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
+            if data.starts_with("tool:") { continue; }
             text.push_str(&data);
         }
         Ok(Json(AnthropicChatResponse {
@@ -73,27 +76,28 @@ async fn running(
     mut req: AnthropicChatRequest,
     tx: &Sender<Result<String, Infallible>>,
 ) -> Result<()> {
-    let sid = session_id(&headers);
-    let model = req.model.clone();
-
-    let user_text = req.messages.last()
+    let talk = req.messages.last()
         .and_then(|m| match &m.content {
             AnthropicContent::Text(s) => Some(s.clone()),
             AnthropicContent::Parts(parts) => parts.iter()
                 .filter_map(|p| match p {
                     AnthropicContentPart::Text { text } => Some(text.clone()),
-                    _ => None 
+                    _ => None
                 }).next(),
         }).unwrap_or_default();
 
     let _ = tx.send(Ok(String::new())).await;
-    let mut session = state.sessions.gain_session(&sid, &user_text, "anthropic", &model)?;
-    let _ = state.sessions.create_message(&mut session, &user_text, "user")?;
+    let mut session = state.sessions.gain_session(SessionSnippet {
+        id: session_id(&headers),
+        title: talk.clone(),
+        model: req.model.clone(),
+        provider: "anthropic".to_string(),
+    })?;
+    let _ = state.sessions.create_message(&mut session, &talk, "user")?;
 
     let tools: Vec<AnthropicTool> = state.toolctx.tools.iter().map(|td| td.into()).collect();
     let mut msgs: Vec<AnthropicMessage> = session.messages.iter().map(|m| m.into()).collect();
     req.tools = Some(tools);
-    req.stream = Some(false);
 
     for _ in 1..=MAX_RUNNING_ROUND {
         req.messages = msgs.clone();
@@ -105,49 +109,41 @@ async fn running(
         ).await.map_err(|e| anyhow!(e))?;
 
         if !resp.status().is_success() {
-            return Err(anyhow!(format!("HTTP {}", resp.status())));
+            return Err(anyhow!("HTTP {}", resp.status()));
         }
 
-        let resp: AnthropicChatResponse = deser_resp(resp).await?;
-        let calls: Vec<(String, String, serde_json::Value)> = resp.content.iter()
-            .filter_map(|cp| match cp {
-                AnthropicContentPart::ToolUse { id, name, input } =>
-                    Some((id.clone(), name.clone(), input.clone())),
-                _ => None,
-            }).collect();
+        let (text, calls) = if req.stream.unwrap_or(false) {
+            sse_parse(resp, tx).await?
+        } else {
+            des_parse(resp, tx).await?
+        };
 
         if calls.is_empty() {
-            let content = resp.content.iter()
-                .filter_map(|cp| match cp {
-                    AnthropicContentPart::Text { text } => Some(text.clone()),
-                    _ => None
-                }).collect::<Vec<_>>().join("");
-            let _ = state.sessions.create_message(&mut session, &content, "assistant")?;
+            let _ = state.sessions.create_message(&mut session, &text, "assistant")?;
             session.update();
             let _ = state.sessions.save_metadata(&session);
-            let _ = tx.send(Ok(content)).await;
-            let _ = tx.send(Ok("[DONE]".into())).await;
             return Ok(());
         }
 
         let _ = tx.send(Ok(format!("tool:{}", calls.len()))).await;
         msgs.push(AnthropicMessage {
             role: AnthropicRole::Assistant,
-            content: AnthropicContent::Parts(resp.content.clone()),
+            content: AnthropicContent::Parts(calls.clone()),
         });
 
         let mut results = Vec::new();
-        for (tc_id, fn_name, fn_input) in &calls {
-            let result = state.toolctx.execute(fn_name, fn_input);
-            let content = if result.success {
-                result.content.clone()
-            } else {
-                format!("ERROR: {}", result.content)
-            };
-            results.push(AnthropicContentPart::ToolResult {
-                tool_use_id: tc_id.clone(), content: content.clone(), is_error: Some(!result.success),
-            });
-            let _ = state.sessions.create_message(&mut session, &content, "tool")?;
+        for part in &calls {
+            match part {
+                AnthropicContentPart::ToolUse { id, name, input } => {
+                    let result = state.toolctx.execute(name, input);
+                    let content = if result.success { result.content } else { format!("ERROR: {}", result.content) };
+                    let _ = state.sessions.create_message(&mut session, &content, "tool")?;
+                    results.push(AnthropicContentPart::ToolResult {
+                        tool_use_id: id.clone(), content, is_error: Some(!result.success),
+                    });
+                }
+                _ => continue,
+            }
         }
         msgs.push(AnthropicMessage {
             role: AnthropicRole::User,
@@ -157,4 +153,65 @@ async fn running(
         let _ = state.sessions.save_metadata(&session);
     }
     Err(anyhow!("max rounds"))
+}
+
+// 非流式解析
+async fn des_parse(
+    resp: Response,
+    tx: &Sender<Result<String, Infallible>>,
+) -> Result<(String, Vec<AnthropicContentPart>)> {
+    let resp: AnthropicChatResponse = deser_resp(resp).await?;
+    let mut parts = vec![];
+    let mut content = String::new();
+    for part in resp.content.iter() {
+        match part {
+            AnthropicContentPart::Text { text } => content.push_str(text),
+            _ => parts.push(part.clone()),
+        }
+    }
+    let _ = tx.send(Ok(content.clone())).await;
+    let _ = tx.send(Ok("[DONE]".into())).await;
+    Ok((content, parts))
+}
+
+// SSE 流式解析（EventStream）
+async fn sse_parse(
+    resp: Response,
+    tx: &Sender<Result<String, Infallible>>,
+) -> Result<(String, Vec<AnthropicContentPart>)> {
+    let mut events = bytes_resp(resp).await;
+    let mut fulltxt = String::new();
+    let mut tlparts: Vec<AnthropicContentPart> = Vec::new();
+
+    while let Some(ev) = events.next().await {
+        let ev = match ev {
+            Ok(e) => e,
+            Err(e) => return Err(anyhow!(e)),
+        };
+        if ev.data == "[DONE]" || ev.data.is_empty() {
+            let _ = tx.send(Ok(ev.data)).await;
+            continue;
+        }
+
+        let v: AnthropicStreamChunk = serde_json::from_str(&ev.data)?;
+
+        let _ = tx.send(Ok(ev.data)).await;
+
+        match v.event {
+            AnthropicStreamEvent::ContentBlockDelta { delta, .. } => {
+                match delta {
+                    AnthropicContentDelta::TextDelta { text } => {
+                        fulltxt.push_str(&text);
+                    }
+                    _ => continue,
+                }
+            }
+            AnthropicStreamEvent::ContentBlockStart { content_block, .. } => {
+                tlparts.push(content_block.clone());
+            }
+            _ => continue,
+        }
+    }
+
+    Ok((fulltxt, tlparts))
 }

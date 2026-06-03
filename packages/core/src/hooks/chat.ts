@@ -2,12 +2,15 @@ import { useState, useCallback, useRef } from 'react';
 import { streamText } from 'ai';
 import { useProvider } from './providers';
 import type { ProviderKind, Message, MessageTooling, ChatState } from '../types';
+import { SESSION } from '../config';
 
 // 通过 Rust 后端代理发送聊天请求，由 @ai-sdk/* 处理格式差异和 SSE 流解析
-export function useChat() {
+export function useChat(sessionId?: string | null) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [status, setStatus] = useState<ChatState>('ready');
     const abortRef = useRef<AbortController | null>(null);
+
+    const headers = sessionId ? { [SESSION]: sessionId } : undefined;
 
     const sendMessage = useCallback(async (providerKind: ProviderKind, modelId: string, text: string) => {
         const model = useProvider(providerKind, modelId);
@@ -37,15 +40,11 @@ export function useChat() {
         try {
             setStatus('streaming');
 
-            const history = messages.map((m) => ({
-                role: m.from as 'user' | 'assistant',
-                content: m.versions[m.versions.length - 1].content,
-            }));
-
             const result = streamText({
                 model,
-                messages: [...history, { role: 'user' as const, content: text }],
+                messages: [{ role: 'user' as const, content: text }],
                 abortSignal: controller.signal,
+                headers,
                 onStepFinish(step) {
                     // 捕获思考过程
                     if (step.reasoning) {

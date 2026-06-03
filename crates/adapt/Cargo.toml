@@ -15,4 +15,4 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }
 aidapter = { workspace = true }
-eventsource-stream = "^0.2"
+eventsource-stream = { workspace = true }

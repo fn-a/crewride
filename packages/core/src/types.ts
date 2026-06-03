@@ -48,9 +48,9 @@ export interface Message {
 export interface Session {
     id: string;
     title: string;
-    modelId: string;
-    providerKind: ProviderKind;
-    messages: Message[];
+    model: string;
+    provider: ProviderKind;
+    messages: number | Message[];
     createdAt: number;
     updatedAt: number;
 }

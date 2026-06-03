@@ -25,6 +25,26 @@ pub struct Session {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSummary {
+    pub id: String,
+    pub title: String,
+    pub model: String,
+    pub provider: String,
+    #[serde(default, skip_deserializing)]
+    pub messages: usize,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSnippet {
+    pub id: Option<String>,
+    pub title: String,
+    pub model: String,
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub key: String,
     pub from: String, // "user" | "assistant"
@@ -50,7 +70,7 @@ pub struct ModelReasoning {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelToolCall {
     pub name: String,
-    pub status: ToolStatus,
+    pub status: ModelToolStatus,
     pub description: String,
     pub parameters: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -61,22 +81,10 @@ pub struct ModelToolCall {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ToolStatus {
+pub enum ModelToolStatus {
     Pending,
     Done,
     Error,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionSummary {
-    pub id: String,
-    pub title: String,
-    pub model: String,
-    pub provider: String,
-    #[serde(default, skip_deserializing)]
-    pub messages: usize,
-    pub created_at: u64,
-    pub updated_at: u64,
 }
 
 pub struct SessionStore {
@@ -131,20 +139,12 @@ impl SessionStore {
     }
 
     /// 获得会话（创建或加载）
-    pub fn gain_session(&self, id: &str, title: &str, provider: &str, model: &str) -> Result<Session> {
-        let session = self.load_session(id);
+    pub fn gain_session(&self, snippet: SessionSnippet) -> Result<Session> {
+        let session = snippet.id.as_ref().map(|id| self.load_session(id)).flatten();
         if let Some(session) = session {
             Ok(session)
         } else {
-            let session = Session {
-                id: id.to_string(),
-                title: title.chars().take(50).collect(),
-                model: model.to_string(),
-                provider: provider.to_string(),
-                messages: Vec::new(),
-                created_at: Utc::now().timestamp_millis() as u64,
-                updated_at: Utc::now().timestamp_millis() as u64,
-            };
+            let session = Session::from(snippet);
             self.save_session(&session)?;
             Ok(session)
         }
@@ -247,6 +247,20 @@ impl Session {
 
     pub fn update(&mut self) {
         self.updated_at = Utc::now().timestamp_millis() as u64;
+    }
+}
+
+impl From<SessionSnippet> for Session {
+    fn from(snippet: SessionSnippet) -> Self {
+        Session {
+            id: snippet.id.unwrap_or(Session::id()),
+            title: snippet.title.chars().take(50).collect(),
+            model: snippet.model,
+            provider: snippet.provider,
+            messages: Vec::new(),
+            created_at: Utc::now().timestamp_millis() as u64,
+            updated_at: Utc::now().timestamp_millis() as u64,
+        }
     }
 }
 
